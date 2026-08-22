@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capital Steward Engine — UI Prototype</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121826; --panel2:#161e30; --line:#232c42; --line2:#2c3752;
+    --text:#e6ecf7; --muted:#8b96ad; --dim:#5c6b85;
+    --green:#34d399; --yellow:#fbbf24; --orange:#fb923c; --violet:#a78bfa; --red:#f87171; --blue:#60a5fa;
+    --mono:ui-monospace,'SF Mono','JetBrains Mono',Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    background-image:radial-gradient(circle at 15% 0%,#14203a 0%,transparent 45%),radial-gradient(circle at 90% 10%,#1a1440 0%,transparent 40%);}
+  ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#28324a;border-radius:6px}
+
+  header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;padding:12px 22px;
+    background:rgba(11,15,23,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo .mark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#34d399,#60a5fa);
+    display:grid;place-items:center;font-weight:800;color:#04120c;font-size:15px}
+  .logo b{font-size:15px;letter-spacing:.2px}
+  .logo small{color:var(--muted);font-weight:500}
+  .hdr-spacer{flex:1}
+  .chip{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
+  .chip.warn{border-color:#5b4a1e;color:var(--yellow)}
+  .chip.ok{border-color:#1f5b49;color:var(--green)}
+
+  nav{display:flex;gap:4px;padding:10px 22px 0;flex-wrap:wrap}
+  .tab{padding:9px 16px;border-radius:9px 9px 0 0;color:var(--muted);cursor:pointer;font-weight:600;font-size:13px;
+    border:1px solid transparent;border-bottom:none}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--text);background:var(--panel);border-color:var(--line);border-bottom:1px solid var(--panel);margin-bottom:-1px}
+  .tab .n{font-family:var(--mono);color:var(--dim);margin-right:6px;font-size:11px}
+
+  main{padding:20px 22px 60px;max-width:1240px;margin:0 auto}
+  .grid{display:grid;gap:14px}
+  .cols-3{grid-template-columns:repeat(3,1fr)}
+  .cols-2{grid-template-columns:1.6fr 1fr}
+  .cols-4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:900px){.cols-3,.cols-2,.cols-4{grid-template-columns:1fr}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .card h3{font-size:13px;color:var(--muted);font-weight:600;letter-spacing:.4px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .card h3 .tag{font-size:10px;color:var(--dim);font-family:var(--mono);text-transform:none;letter-spacing:0}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+  .stat .k{font-size:11px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+  .stat .v{font-size:22px;font-weight:700;font-family:var(--mono);margin-top:4px}
+  .stat .s{font-size:11px;color:var(--dim);margin-top:2px}
+
+  .drop{border:1.5px dashed var(--line2);border-radius:12px;padding:22px;text-align:center;color:var(--muted);cursor:pointer;transition:.15s}
+  .drop:hover{border-color:var(--green);color:var(--text)}
+  .drop.file{border-style:solid;border-color:#1f5b49;color:var(--green)}
+  .drop .ic{font-size:22px}
+  .drop .fn{font-family:var(--mono);font-size:12px;margin-top:6px}
+  .drop .sub{font-size:11px;color:var(--dim);margin-top:4px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{color:var(--dim);font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+  td{padding:9px 10px;border-bottom:1px solid #1a2233;white-space:nowrap;font-family:var(--mono)}
+  tr.row{cursor:pointer;transition:.12s}
+  tr.row:hover{background:#141c2e}
+  .num{text-align:right}
+  .tick{color:var(--blue);font-weight:700}
+  .up{color:var(--green)}.down{color:var(--red)}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;font-family:var(--mono);letter-spacing:.3px}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+
+  .bar{height:8px;background:#0e1526;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+  .bar>i{display:block;height:100%;border-radius:6px}
+
+  .ringbox{display:flex;align-items:center;gap:14px}
+  .subs{display:flex;flex-direction:column;gap:9px;flex:1}
+  .subrow{display:grid;grid-template-columns:130px 1fr 40px;gap:10px;align-items:center;font-size:12px}
+  .subrow .w{color:var(--dim);font-family:var(--mono);font-size:11px}
+
+  .drivers{list-style:none;display:flex;flex-direction:column;gap:8px}
+  .drivers li{background:#0e1526;border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:12.5px;color:#cfd9ec}
+  .drivers li b{color:var(--text)}
+  .drivers li.warn{border-left:3px solid var(--yellow)}
+  .drivers li.danger{border-left:3px solid var(--red)}
+  .drivers li.gate{border-left:3px solid var(--red);background:#1c1220}
+
+  .tagchip{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;font-family:var(--mono)}
+  .btn{border:none;border-radius:9px;padding:10px 16px;font-weight:700;cursor:pointer;font-size:13px;background:#16203a;color:var(--text);border:1px solid var(--line2)}
+  .btn:hover{border-color:var(--green)}
+  .btn.primary{background:linear-gradient(135deg,#0f8a63,#15803d);color:#eafff5;border:none}
+  .btn.primary:hover{filter:brightness(1.1)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+
+  input[type=range]{width:100%;accent-color:var(--green);cursor:pointer}
+  input[type=number]{background:#0e1526;border:1px solid var(--line2);color:var(--text);border-radius:7px;padding:6px 9px;font-family:var(--mono);width:110px}
+  .cfg{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #1a2233;font-size:13px}
+  .cfg .lbl b{display:block}.cfg .lbl small{color:var(--dim);font-size:11px}
+  .cfg .val{font-family:var(--mono);color:var(--green);min-width:52px;text-align:right}
+
+  .slideover{position:fixed;top:0;right:0;bottom:0;width:min(760px,100%);background:var(--panel);border-left:1px solid var(--line2);
+    z-index:40;transform:translateX(100%);transition:.25s cubic-bezier(.4,0,.2,1);overflow-y:auto;box-shadow:-20px 0 60px rgba(0,0,0,.5)}
+  .slideover.open{transform:none}
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:35;opacity:0;pointer-events:none;transition:.2s}
+  .scrim.open{opacity:1;pointer-events:auto}
+
+  .overlay{position:fixed;inset:0;background:rgba(6,9,15,.82);z-index:60;display:none;place-items:center;backdrop-filter:blur(4px)}
+  .overlay.open{display:grid}
+  .prog{background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:26px;width:min(460px,92vw)}
+  .prog .step{display:flex;gap:12px;align-items:center;padding:9px 0;color:var(--dim);font-family:var(--mono);font-size:13px}
+  .prog .step.done{color:var(--green)}
+  .prog .step.active{color:var(--text)}
+  .spinner{width:14px;height:14px;border:2px solid var(--line2);border-top-color:var(--green);border-radius:50%;animation:sp 0.7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  .foot{color:var(--dim);font-size:11px;text-align:center;padding:20px;border-top:1px solid var(--line);margin-top:26px}
+  .kbd{font-family:var(--mono);background:#16203a;border:1px solid var(--line2);border-radius:5px;padding:1px 6px;font-size:11px}
+  .muted{color:var(--muted)}
+  .note{font-size:12px;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="mark">CS</div><div><b>Capital Steward Engine</b><br><small>Portfolio discipline · valuation · tax · risk</small></div></div>
+  <div class="hdr-spacer"></div>
+  <span class="chip">as-of <b style="color:var(--text)">2026-08-22</b></span>
+  <span class="chip warn">⚠ ADVISORY MODE — Stage 2 never auto-executes</span>
+  <span class="chip ok">● Engine v1.0 · shadow</span>
+</header>
+
+<nav id="nav">
+  <div class="tab active" data-v="inputs"><span class="n">01</span>Inputs &amp; Policy</div>
+  <div class="tab" data-v="decisions"><span class="n">02</span>Decisions</div>
+  <div class="tab" data-v="policy"><span class="n">03</span>Weights &amp; Thresholds</div>
+  <div class="tab" data-v="tax"><span class="n">04</span>Tax-Year Tracker</div>
+</nav>
+
+<main id="app"></main>
+
+<div class="scrim" id="scrim" onclick="closeDetail()"></div>
+<div class="slideover" id="detail"></div>
+
+<div class="overlay" id="overlay">
+  <div class="prog">
+    <h3 style="margin-bottom:8px">Running engine…</h3>
+    <div class="note" style="margin-bottom:10px">Reconciling 3 files → per-lot FIFO → gates → composite</div>
+    <div id="steps"></div>
+  </div>
+</div>
+
+<script>
+/* ================= DATA (mock, mirrors spec sample rows) ================= */
+const ASOF = new Date('2026-08-22');
+/* NOTE: decision computation intentionally REMOVED (Freeze ADR-1a). This prototype
+   renders a STATIC mock payload: each holding carries pre-computed `decision` + `score`
+   fields exactly as the backend would return them. It must never compute them client-side. */
+const DEC = {
+  'HOLD':      {color:'#34d399', label:'HOLD'},
+  'WATCH':     {color:'#fbbf24', label:'WATCH'},
+  'TRIM':      {color:'#fb923c', label:'TRIM'},
+  'HARVEST':   {color:'#a78bfa', label:'HARVEST'},
+  'EXIT':      {color:'#f87171', label:'EXIT · THESIS BREAK'}
+};
+let W = {sizing:25, valuation:25, quality:20, tax:15, opp:10, tech:5}; // live weights
+let view = 'inputs';
+let ran = false;
+let sel = null;
+
+const HOLDINGS = [
+ { id:'SALASAR', name:'Salasar Techno Engg', bucket:'Micro-cap', alloc:9.8, gain:94.2,
+   pledge:4.0, stage1:'TRIM', decision:'TRIM', score:87, conf:81,
+   subs:{sizing:92, valuation:97, quality:60, tax:35, opp:90, tech:70},
+   drivers:[
+     {t:'gate', txt:'<b>HARD GATE (G2):</b> allocation 9.8% > 3% micro-cap cap — TRIM to cap. Risk caps are never tax-deferred.'},
+     {t:'gate', txt:'Composite 87 (HARVEST band) overridden by G2 → TRIM (precedence G2 &gt; G4)'},
+     {t:'warn', txt:'<b>PE 55×</b> vs own 5-yr median 18× — 87% of return is re-rating, not earnings'},
+     {t:'warn', txt:'<b>Price +94%</b> vs EPS growth +9% — margin of safety fully consumed'}],
+   watch:['FII holding down 3 consecutive quarters'],
+   trim:{qty:'33 of 48', value:2524, lots:'lots #1–#2 (FIFO)', note:'TRIM-S to cap (9.8%→3.0%). Oldest lots are 121d → STCG 20% on the realised gain.'},
+   next:'+1d · gate fired',
+   lots:[['2026-04-23',16,42.0],['2026-05-02',16,48.5],['2026-06-11',16,61.2]] },
+ { id:'KALYANKJIL', name:'Kalyan Jewellers', bucket:'Mid-cap', alloc:1.52, gain:73.4,
+   pledge:0, stage1:null, decision:'TRIM', score:63, conf:72,
+   subs:{sizing:45, valuation:88, quality:55, tax:60, opp:65, tech:62},
+   drivers:[
+     {t:'warn', txt:'<b>PE 42×</b> vs own median 24× — +73% in 81 days is re-rating, not earnings-led'},
+     {t:'',    txt:'Gain +73% vs EPS growth +11% — residual is multiple expansion'},
+     {t:'',    txt:'Allocation 1.5% is <i>below</i> band (2–5%) — trim from strength, not a rebalance'}],
+   watch:[],
+   trim:{qty:'10 of 30', value:6083, lots:'oldest 2 lots (FIFO)', note:'All lots 81d → STCG 20% on ₹3,100 gain. Defer 284d for LTCG, or book now.'},
+   next:'+7d · verify trim',
+   lots:[['2026-05-25',10,345.0],['2026-05-28',8,352.0],['2026-06-04',7,356.0],['2026-06-09',5,352.0]] },
+ { id:'AGIGREENPAC', name:'AGI Greenpac', bucket:'Small-cap', alloc:0.12, gain:19.7,
+   pledge:0, stage1:null, decision:'TRIM', score:57, conf:58,
+   subs:{sizing:40, valuation:82, quality:45, tax:70, opp:50, tech:40},
+   drivers:[
+     {t:'warn', txt:'<b>PE 28×</b> vs own 5-yr median 15× — re-rating without earnings support'},
+     {t:'',    txt:'<b>Dust-position rule:</b> 0.12% allocation → partial trim invalid (min-position floor)'},
+     {t:'',    txt:'Low confidence — fundamentals only partly covered in screener universe'}],
+   watch:['Not in fundamentals screener — partial-data Stage 2 score'],
+   trim:{qty:'—', value:null, lots:'—', note:'Engine suggests: full exit to clean a dust position, or hold-to-LTCG.'},
+   next:'+7d',
+   lots:[['2026-05-27',1,588.30],['2026-05-27',1,591.00]] },
+ { id:'BAJFINANCE', name:'Bajaj Finance', bucket:'Large-cap', alloc:2.72, gain:20.1,
+   pledge:0, stage1:null, decision:'HOLD', score:24, conf:84, tag:'ACCUMULATE',
+   subs:{sizing:20, valuation:25, quality:20, tax:30, opp:25, tech:35},
+   drivers:[
+     {t:'', txt:'<b>Valuation in line</b> with own history (PE 24× vs 26× median) — cheap vs itself'},
+     {t:'', txt:'Quality composite stable vs entry — compounder still compounding'},
+     {t:'', txt:'<b>Under-allocated vs conviction:</b> 2.7% vs 4–8% band → ACCUMULATE tag'}],
+   watch:[],
+   trim:null,
+   next:'+90d',
+   lots:[['2026-05-19',12,895.0],['2026-05-26',8,910.0],['2026-05-29',6,918.0],['2026-06-02',4,912.0]] },
+ { id:'HDFCBANK', name:'HDFC Bank', bucket:'Large-cap', alloc:4.24, gain:-4.3,
+   pledge:0, stage1:null, decision:'HOLD', score:28, conf:78, flagAvg:true,
+   subs:{sizing:30, valuation:30, quality:25, tax:25, opp:20, tech:35},
+   drivers:[
+     {t:'', txt:'<b>Loss is price-driven, not fundamental-driven</b> — quality intact'},
+     {t:'', txt:'Valuation below own 5-yr median — no exit signal on fundamentals'}],
+   watch:[{c:'red', txt:'Averaging-into-losses: 36 buy lots since May, net −4.3% — confirm thesis before adding'}],
+   trim:null,
+   next:'+14d · averaging flag',
+   lots:[['2026-05-19',20,772.0],['2026-06-10',16,755.0],['2026-06-28',20,762.0],['2026-07-20',14,748.0]] },
+ { id:'BANKBARODA', name:'Bank of Baroda', bucket:'Mid-cap', alloc:1.1, gain:2.4,
+   pledge:0, stage1:null, decision:'WATCH', score:47, conf:55,
+   subs:{sizing:38, valuation:55, quality:45, tax:55, opp:45, tech:40},
+   drivers:[
+     {t:'', txt:'<b>Blended +2.4% hides the losing tranche:</b> lot #1 −13.4%, lot #2 +0.8%'},
+     {t:'', txt:'Per-lot view matters — FIFO tax clock differs across lots (194d vs 145d held)'}],
+   watch:['First lot reaches LTCG in ~171 days'],
+   trim:null,
+   next:'+30d',
+   lots:[['2026-02-09',10,290.0],['2026-03-30',20,250.0]] },
+ { id:'DAMCAP', name:'DAM Capital Advisors', bucket:'Small-cap', alloc:0.6, gain:0.6,
+   pledge:0, stage1:null, decision:'HOLD', score:28, conf:60,
+   subs:{sizing:25, valuation:35, quality:30, tax:20, opp:30, tech:25},
+   drivers:[
+     {t:'', txt:'Held <b>10 days</b> — too early for any exit signal'},
+     {t:'', txt:'Below target band — no sizing pressure'}],
+   watch:[],
+   trim:null,
+   next:'+90d',
+   lots:[['2026-08-12',5,145.98]] },
+ { id:'ASHOKA', name:'Ashoka Buildcon', bucket:'Small-cap', alloc:2.4, gain:-9.7,
+   pledge:12.4, stage1:'EXIT', decision:'EXIT', score:48, conf:88, flagAvg:true, flagBlock:true,
+   subs:{sizing:60, valuation:20, quality:85, tax:30, opp:40, tech:50},
+   drivers:[
+     {t:'gate', txt:'<b>HARD GATE — governance:</b> promoter pledge 12.4% (threshold 10%) → EXIT regardless of P&L'},
+     {t:'danger', txt:'<b>16 buy lots at declining prices, every lot in loss</b> — averaging into a loser'},
+     {t:'danger', txt:'Negative PE — earnings deteriorated since entry'}],
+   watch:[{c:'red', txt:'BLOCK-ADDS: re-underwrite thesis in writing before any further buy'}],
+   trim:{qty:'all (40+)', value:4556, lots:'all lots', note:'Exit (stop-loss / thesis break). Losses harvestable vs STCG (S.74).'},
+   next:'+1d · gate fired',
+   lots:[['2026-05-25',10,124.0],['2026-06-19',10,130.98],['2026-06-30',10,127.0],['2026-07-08',10,122.0]] },
+ { id:'BCC', name:'Bharat Coking Coal', bucket:'Mid-cap', alloc:0.9, gain:4.1,
+   pledge:0, stage1:null, decision:'HOLD', score:21, conf:66, tag:'ACCUMULATE',
+   subs:{sizing:15, valuation:25, quality:20, tax:25, opp:20, tech:20},
+   drivers:[
+     {t:'', txt:'<b>Under-allocated vs conviction</b> (0.9% vs 2–5% band) → ACCUMULATE tag'},
+     {t:'', txt:'Valuation in line with own history (PE 9× vs 8× median)'}],
+   watch:[],
+   trim:null,
+   next:'+30d · accumulate tag',
+   lots:[['2026-06-21',8,215.0],['2026-07-05',12,228.0]] },
+ { id:'LT', name:'Larsen & Toubro', bucket:'Large-cap', alloc:2.4, gain:14.2,
+   pledge:0, stage1:'HOLD', decision:'HOLD', score:38, conf:70,
+   subs:{sizing:25, valuation:40, quality:30, tax:70, opp:30, tech:45},
+   drivers:[
+     {t:'gate', txt:'<b>HARD GATE (G3):</b> 22 days to LTCG &amp; valuation not stretched → HOLD (defer booking until LTCG)'},
+     {t:'',    txt:'G3 &gt; G4: composite 38 (WATCH band) overridden to HOLD — precedence G3 &gt; G4'},
+     {t:'',    txt:'Defer stands: valuation subscore 40 &lt; 85 → not suppressed'}],
+   watch:['Crosses LTCG in 22 days — re-run engine then'],
+   trim:null,
+   next:'+22d · LTCG date',
+   lots:[['2025-09-16',12,287.0],['2025-11-03',8,301.0]] },
+];
+
+const LTP = { SALASAR:76.5, KALYANKJIL:608.25, AGIGREENPAC:706.0, BAJFINANCE:1087.0,
+              HDFCBANK:727.0, BANKBARODA:251.0, DAMCAP:146.15, ASHOKA:113.9, BCC:231.0, LT:340.0 };
+
+/* ================= HELPERS ================= */
+const $ = s => document.querySelector(s);
+const inr = n => '₹' + (n??0).toLocaleString('en-IN');
+const pct = n => (n??0).toFixed(1) + '%';
+function daysHeld(d){ return Math.round((ASOF - new Date(d)) / 86400000); }
+/* compositeOf() / decisionOf() REMOVED — the prototype renders a static backend payload, never computes one. */
+function badge(d){ const m=DEC[d]||DEC.HOLD; return `<span class="badge" style="color:${m.color};background:${m.color}18;border:1px solid ${m.color}44"><span class="dot" style="background:${m.color}"></span>${m.label}</span>`; }
+function ring(p,color){ const r=26,c=2*Math.PI*r; return `<svg width="70" height="70" viewBox="0 0 70 70">
+  <circle cx="35" cy="35" r="${r}" fill="none" stroke="#1a2337" stroke-width="7"/>
+  <circle cx="35" cy="35" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"
+    stroke-dasharray="${c*p/100} ${c}" transform="rotate(-90 35 35)"/>
+  <text x="35" y="40" text-anchor="middle" font-size="19" font-weight="700" fill="#e6ecf7" font-family="ui-monospace,monospace">${p}</text></svg>`; }
+function catbar(v,color){ return `<div class="bar"><i style="width:${v}%;background:${color}"></i></div>`; }
+function lotRows(h, highlightTop=0){
+  const ltp=LTP[h.id];
+  return h.lots.map((l,i)=>{
+    const [d,q,b]=l, days=daysHeld(d), d2l=Math.max(0,365-days), pnl=(ltp-b)*q, pc=(ltp/b-1)*100;
+    const hlt=i<highlightTop ? 'style="background:#1a1420"' : '';
+    return `<tr ${hlt}><td class="tick">#${i+1}</td><td>${d}</td><td class="num">${q}</td>
+      <td class="num">${b.toFixed(2)}</td><td class="num">${ltp.toFixed(2)}</td>
+      <td class="num ${pnl>=0?'up':'down'}">${pnl>=0?'+':''}${Math.round(pnl)}</td>
+      <td class="num ${pc>=0?'up':'down'}">${pc>=0?'+':''}${pc.toFixed(1)}%</td>
+      <td class="num">${days}d</td>
+      <td class="num ${d2l===0?'up':''}">${d2l===0?'LTCG ✓':d2l+'d'}</td></tr>`;
+  }).join('');
+}
+
+const PREV = { SALASAR:'TRIM', KALYANKJIL:'TRIM', AGIGREENPAC:'HOLD', BAJFINANCE:'HOLD',
+               HDFCBANK:'HOLD', BANKBARODA:'HOLD', DAMCAP:'HOLD', ASHOKA:'WATCH', BCC:'HOLD', LT:'WATCH' };
+function changeChip(h,d){ const p=PREV[h.id]; if(!p) return '';
+  return d!==p ? ` <span class="note" style="font-size:10px">↑ prev ${p}</span>` : ` <span class="note" style="font-size:10px">= unchanged ×3</span>`; }
+function whyBlock(h,d){
+  if(h.stage1==='HOLD'){
+    return `<div class="card" style="margin-top:14px"><h3>Why now <span class="tag">G3 tax defer</span></h3>
+      <ul class="drivers">
+        <li class="warn"><b>Primary trigger:</b> 22 days to LTCG &amp; valuation not stretched</li>
+        <li><b>G3 &gt; G4:</b> composite ${h.score} (WATCH band) overridden to HOLD — defer booking until LTCG</li>
+        <li><b>Defer stands:</b> valuation subscore 40 &lt; 85 → not suppressed</li>
+      </ul></div>`;
+  }
+  if(d==='HOLD'||d==='WATCH'){
+    return `<div class="card" style="margin-top:14px"><h3>Why no action <span class="tag">despite ${h.gain>=0?'+':''}${h.gain.toFixed(1)}%</span></h3>
+      <ul class="drivers">
+        <li><b>✓</b> Allocation ${h.alloc.toFixed(1)}% within band — no sizing pressure</li>
+        <li><b>✓</b> Valuation/quality not extreme enough to book</li>
+        <li><b>✓</b> No Stage 1 gate fired</li>
+        ${h.flagAvg?'<li class="warn"><b>!</b> Averaging-into-losses flag — review thesis, do not add</li>':''}
+      </ul></div>`;
+  }
+  return `<div class="card" style="margin-top:14px"><h3>Why now</h3>
+    <ul class="drivers">
+      <li class="warn"><b>Primary trigger:</b> ${h.stage1==='TRIM'?'G2 allocation breach (risk cap)':'composite ≥ 56 — valuation stretch'}</li>
+      <li><b>Previous run:</b> ${PREV[h.id]||'—'} · ${h.stage1?'gate overrides hysteresis':'changed this run'}</li>
+    </ul></div>`;
+}
+
+/* ================= RENDER ================= */
+function render(){
+  const n=$('#nav .tab.active');
+  $('main').innerHTML = view==='inputs'? renderInputs() : view==='decisions'? renderDecisions() : view==='policy'? renderPolicy() : renderTax();
+}
+function renderInputs(){
+  return `<div class="grid cols-3" style="margin-bottom:14px">
+    <div class="drop" id="f1"><div class="ic">📄</div><b>1 · Portfolio holdings</b><div class="sub">Instrument, Qty, Avg Buy, Invested, Value, Alloc %, Gain/Loss %, XIRR, Days, First/Last Date</div></div>
+    <div class="drop" id="f2"><div class="ic">📊</div><b>2 · Fundamentals / valuation screener</b><div class="sub">~120 stocks — PE/PB + premiums, PEG, ROE/ROCE, growth, D/E, pledge, DII/FII flow, 200D SMA</div></div>
+    <div class="drop" id="f3"><div class="ic">🧾</div><b>3 · Raw trade ledger (per fill)</b><div class="sub">Instrument, Qty, Buy Price, LTP, P&L, Invested, Trade Date — drives per-lot FIFO tax</div></div>
+  </div>
+  <div class="grid cols-2">
+    <div class="card"><h3>Run controls</h3>
+      <div class="note" style="margin-bottom:14px">Files are parsed server-side → cost-basis reconciliation → per-lot tax engine → Stage 1 gates → Stage 2 composite. Outputs are <b>advisory</b>.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn primary" onclick="runEngine()">▶ Run demo (simulate)</button>
+        <button class="btn" onclick="loadSample()">Load sample dataset</button>
+      </div>
+      <div class="note" style="margin-top:12px">Reconciliation check: <span class="kbd">Σ(lot qty × buy) == Invested</span> &nbsp;·&nbsp; <span class="kbd">Σ(lot qty) == Qty Held</span> — mismatch = hard data error.</div>
+    </div>
+    <div class="card"><h3>Policy snapshot <span class="tag">configurable · v1 defaults</span></h3>
+      <div class="cfg"><div class="lbl"><b>Max single-stock cap</b><small>Stage 1 hard gate</small></div><div></div><div class="val">10%</div></div>
+      <div class="cfg"><div class="lbl"><b>Allocation bands</b><small>Large / Mid / Small / Micro</small></div><div></div><div class="val">4–8 / 2–5 / 1–3 / 0–3%</div></div>
+      <div class="cfg"><div class="lbl"><b>Quality floor (thesis break)</b><small>composite < 40 or −20 pts</small></div><div></div><div class="val">40/100</div></div>
+      <div class="cfg"><div class="lbl"><b>Pledge spike threshold</b><small>governance gate</small></div><div></div><div class="val">10%</div></div>
+      <div class="cfg"><div class="lbl"><b>LTCG defer window</b><small>w/ valuation-extreme override</small></div><div></div><div class="val">30d</div></div>
+    </div>
+  </div>`;
+}
+const PRIORITY = { EXIT:0, TRIM:1, HARVEST:2 };
+function reasonClass(h){ if(h.decision==='EXIT') return 'RISK';
+  if(h.decision==='TRIM') return (h.stage1==='TRIM') ? 'SIZING' : 'VALUATION';
+  return 'VALUATION'; }
+function renderDecisions(){
+  const dist={HOLD:0,WATCH:0,TRIM:0,HARVEST:0,EXIT:0};
+  HOLDINGS.forEach(h=>dist[h.decision]++);
+  const candidates = HOLDINGS.filter(h=>h.decision==='TRIM'||h.decision==='HARVEST'||h.decision==='EXIT')
+    .sort((a,b)=> (PRIORITY[a.decision]-PRIORITY[b.decision]) || (b.score-a.score));
+  const rows = HOLDINGS.map(h=>{
+    const s=h.score, d=h.decision, m=DEC[d];
+    const tag = h.tag?` <span class="tagchip" style="color:var(--blue);background:#60a5fa1a;border:1px solid #60a5fa44">ACCUMULATE</span>`:'';
+    const fa = h.flagAvg?` <span class="tagchip" style="color:var(--yellow);background:#fbbf241a;border:1px solid #fbbf2444">AVG-DOWN</span>`:'';
+    return `<tr class="row" onclick="openDetail('${h.id}')">
+      <td class="tick">${h.id}${tag}${fa}</td><td class="muted" style="font-family:system-ui">${h.bucket}</td>
+      <td class="num">${pct(h.alloc)}</td><td class="num ${h.gain>=0?'up':'down'}">${h.gain>=0?'+':''}${pct(h.gain)}</td>
+      <td class="num">${h.days||''}${h.lots? '':''}</td>
+      <td>${badge(d)}${changeChip(h,d)}</td>
+      <td class="num" style="color:${m.color}">${s.toFixed(0)}</td>
+      <td class="num">${h.conf}%</td></tr>`;
+  }).join('');
+  return `
+  <div class="grid cols-4" style="margin-bottom:14px">
+    <div class="stat"><div class="k">Portfolio value</div><div class="v">${inr(129830)}</div><div class="s">10 open holdings · 3 files reconciled</div></div>
+    <div class="stat"><div class="k">Decisions</div><div class="v"><span style="color:var(--green)">${dist.HOLD}</span> <span style="color:var(--yellow)">${dist.WATCH}</span> <span style="color:var(--orange)">${dist.TRIM}</span> <span style="color:var(--violet)">${dist.HARVEST}</span> <span style="color:var(--red)">${dist.EXIT}</span></div><div class="s">HOLD · watch · trim · harvest · exit</div></div>
+    <div class="stat"><div class="k">LTCG headroom (provisional)</div><div class="v">₹18,400 <span style="font-size:12px;color:var(--dim)">/ 1,25,000</span></div><div class="s">14.7% · open-positions only</div></div>
+    <div class="stat"><div class="k">Stage 1 gates fired</div><div class="v" style="color:var(--red)">3</div><div class="s">governance · allocation · tax defer</div></div>
+  </div>
+
+  <div class="grid cols-2">
+    <div class="card"><h3>Holdings — scored &amp; ranked <span class="tag">click row → detail</span></h3>
+      <div style="overflow-x:auto"><table><thead><tr><th>Instrument</th><th>Bucket</th><th class="num">Alloc</th><th class="num">Gain/Loss</th><th>Decision</th><th class="num">Score</th><th class="num">Conf</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    </div>
+    <div class="grid" style="gap:14px">
+      <div class="card"><h3>Action queue <span class="tag">EXIT → TRIM → HARVEST · risk first</span></h3>
+        ${candidates.length? candidates.map((x,i)=>{ const rc=reasonClass(x); const cc=rc==='RISK'?'var(--red)':rc==='SIZING'?'var(--orange)':'var(--violet)';
+          return `<div class="cfg" style="grid-template-columns:20px 1fr auto auto"><div style="color:var(--dim);font-family:var(--mono)">${i+1}</div>
+          <div><b style="font-family:var(--mono);color:var(--blue)">${x.id}</b> <span class="note">${x.decision}</span></div>
+          <span class="tagchip" style="color:${cc};border:1px solid ${cc}44">${rc}</span>
+          <div class="val">${x.score}</div></div>`; }).join('') : '<div class="note">No candidates.</div>'}
+        <div class="note" style="margin-top:8px">Not a plain composite sort — risk/sizing actions outrank valuation harvests. If only a few can be actioned this week, take the top.</div>
+      </div>
+      <div class="card"><h3>Theme concentration <span class="tag">rebalance check</span></h3>
+        <div class="cfg"><div class="lbl"><b>PSU / Infra</b><small>Salasar, Ashoka, BCC</small></div><div class="bar" style="flex:1"><i style="width:82%;background:var(--yellow)"></i></div><div class="val" style="color:var(--yellow)">16.4%</div></div>
+        <div class="cfg"><div class="lbl"><b>Rate-sensitive financials</b><small>Bajaj, HDFC, BoB</small></div><div class="bar" style="flex:1"><i style="width:45%;background:var(--green)"></i></div><div class="val">8.9%</div></div>
+        <div class="note">⚠ PSU/Infra drifted above its 15% band — sector-wide review, not single-stock, is the right lens.</div>
+      </div>
+    </div>
+  </div>`;
+}
+function renderPolicy(){
+  const total = Object.values(W).reduce((a,b)=>a+b,0);
+  const cats = { sizing:['Position sizing / concentration','25%','#34d399'],
+                 valuation:['Valuation stretch','25%','#fb923c'],
+                 quality:['Fundamental / quality drift','20%','#a78bfa'],
+                 tax:['Tax efficiency','15%','#60a5fa'],
+                 opp:['Opportunity cost','10%','#fbbf24'],
+                 tech:['Technical / regime overlay','5%','#94a3b8'] };
+  const sliders = Object.entries(cats).map(([k,meta])=>`
+    <div class="cfg">
+      <div class="lbl" style="min-width:200px"><b>${meta[0]}</b><small>suggested ${meta[1]}</small></div>
+      <input type="range" min="0" max="50" step="1" value="${W[k]}" oninput="setW('${k}',+this.value)"/>
+      <div class="val" id="w-${k}">${W[k]}%</div>
+    </div>`).join('');
+  return `<div class="grid cols-2">
+    <div class="card"><h3>Category weights <span class="tag">Stage 2 composite · tunable per bucket</span></h3>
+      ${sliders}
+      <div class="cfg" style="border-bottom:none;margin-top:6px">
+        <div class="lbl"><b>Total</b><small>must equal 100%</small></div>
+        <div class="bar" style="flex:1"><i style="width:${Math.min(total,100)}%;background:${total===100?'var(--green)':'var(--red)'}"></i></div>
+        <div class="val" style="color:${total===100?'var(--green)':'var(--red)'}">${total}%</div>
+      </div>
+      <div class="note" style="margin-top:8px">${total===100? '✓ Composite normalised to 100%.' : '⚠ Composite is normalised to the running total (sum ≠ 100).'}
+      <b>Static prototype — sliders are visual only.</b> No decision is recomputed here (ADR-1a): the decisions view renders the static mock payload. In production, a change triggers a debounced <span class="kbd">POST /what-if</span> and the server's authoritative payload replaces the view. Commit persists a new policy version.</div>
+    </div>
+    <div class="card"><h3>Thresholds &amp; gates <span class="tag">D-01…D-15</span></h3>
+      <div class="cfg"><div class="lbl"><b>Composite bands</b><small>decision mapping</small></div><div></div><div class="val">0-30 / 31-55 / 56-75 / 76+</div></div>
+      <div class="cfg"><div class="lbl"><b>Hysteresis</b><small>band-change requires N runs</small></div><div></div><div class="val">2 runs</div></div>
+      <div class="cfg"><div class="lbl"><b>Re-rating share</b><small>strong / critical</small></div><div></div><div class="val">65% / 80%</div></div>
+      <div class="cfg"><div class="lbl"><b>Min meaningful position</b><small>no dust positions</small></div><div></div><div class="val">0.5% / ₹5k</div></div>
+      <div class="cfg"><div class="lbl"><b>Participation cap</b><small>trim ≤ per session</small></div><div></div><div class="val">10% ADV</div></div>
+      <div class="cfg"><div class="lbl"><b>Transaction cost</b><small>liquid / microcap</small></div><div></div><div class="val">0.35% / 1.0%</div></div>
+      <div class="cfg"><div class="lbl"><b>Default hurdle (opp. cost)</b><small>Nifty / liquid fund</small></div><div></div><div class="val">11% / 6.4%</div></div>
+      <div class="note" style="margin-top:10px">All values versioned in <span class="kbd">policy.yaml</span> — the engine never hardcodes them.</div>
+    </div>
+  </div>`;
+}
+function renderTax(){
+  const headroom = 125000-18400;
+  return `<div class="grid cols-2">
+    <div class="card"><h3>Tax-year gain budget <span class="tag">FY 2026-27 · PROVISIONAL</span></h3>
+      <div class="cfg"><div class="lbl"><b>LTCG booked</b><small>12.5% above ₹1.25L</small></div><div class="bar" style="flex:1"><i style="width:14.7%;background:var(--green)"></i></div><div class="val">₹18,400</div></div>
+      <div class="cfg"><div class="lbl"><b>Headroom remaining</b><small>exemption ₹1.25L</small></div><div class="bar" style="flex:1"><i style="width:85.3%;background:#26324e"></i></div><div class="val">${inr(headroom)}</div></div>
+      <div class="cfg"><div class="lbl"><b>STCG booked</b><small>20% · no exemption</small></div><div class="bar" style="flex:1"><i style="width:40%;background:var(--orange)"></i></div><div class="val">₹31,200</div></div>
+      <div class="cfg"><div class="lbl"><b>STCL harvestable</b><small>offsets STCG + LTCG (S.74)</small></div><div class="bar" style="flex:1"><i style="width:25%;background:var(--blue)"></i></div><div class="val">₹9,800</div></div>
+      <div class="note" style="margin-top:10px">⚠ All three files contain only <b>open</b> positions — realized-gains feed is a gap. Values above are mock until the sold-transactions export is wired.</div>
+    </div>
+    <div class="card"><h3>Sequencing rules <span class="tag">how the engine orders exits</span></h3>
+      <div class="drivers">
+        <li><b>1 ·</b> Book LTCG-eligible, small individual gains first — they spend the ₹1.25L exemption for free.</li>
+        <li><b>2 ·</b> Harvest short-term losers to offset STCG (20% bucket is the most expensive).</li>
+        <li><b>3 ·</b> No wash-sale rule in India → sell &amp; rebuy to reset cost basis is legal (GAAR caveat).</li>
+        <li class="warn"><b>4 ·</b> Never defer a <i>stretched</i> position 30 days just for LTCG — 7.5pp tax saved vs drawdown risk.</li>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ================= DETAIL SLIDE-OVER ================= */
+function openDetail(id){
+  sel = HOLDINGS.find(h=>h.id===id);
+  const h = sel, d = h.decision, m = DEC[d], s = h.score;
+  const catNames = {sizing:'Position sizing', valuation:'Valuation stretch', quality:'Quality drift', tax:'Tax efficiency', opp:'Opportunity cost', tech:'Technical/regime'};
+  const catCols = {sizing:'#34d399', valuation:'#fb923c', quality:'#a78bfa', tax:'#60a5fa', opp:'#fbbf24', tech:'#94a3b8'};
+  const subrows = Object.entries(h.subs).map(([k,v])=>`
+    <div class="subrow"><span>${catNames[k]} <span class="w">${W[k]}%</span></span>${catbar(v,catCols[k])}<span class="num" style="font-family:var(--mono)">${v}</span></div>`).join('');
+  const drivers = h.drivers.map(x=>`<li class="${x.t}">${x.txt}</li>`).join('');
+  const watch = (h.watch||[]).map(w=> typeof w==='string' ? `<li class="warn">⚠ ${w}</li>` : `<li class="${w.c==='red'?'danger':'warn'}">${w.txt}</li>`).join('');
+  const t = h.trim;
+  const trimBox = t ? `<div class="card" style="margin-top:14px"><h3>Suggested trim <span class="tag">FIFO lot-aware</span></h3>
+      <div class="grid cols-3">
+        <div class="stat"><div class="k">Qty</div><div class="v" style="font-size:17px">${t.qty}</div></div>
+        <div class="stat"><div class="k">Value</div><div class="v" style="font-size:17px">${t.value==null?'—':inr(t.value)}</div></div>
+        <div class="stat"><div class="k">Lots</div><div class="v" style="font-size:15px">${t.lots}</div></div>
+      </div>
+      <div class="note" style="margin-top:10px">${t.note}</div></div>` : '';
+  $('#detail').innerHTML = `
+    <div style="padding:18px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px">
+      <div style="flex:1"><div style="font-size:11px;color:var(--dim);font-family:var(--mono)">${h.id}</div>
+        <div style="font-size:18px;font-weight:700">${h.name} <span class="note" style="font-weight:400">· ${h.bucket}</span></div></div>
+      ${badge(d)} <span class="chip warn">Human review required</span> <button class="btn" style="padding:6px 12px" onclick="closeDetail()">✕</button>
+    </div>
+    <div style="padding:16px 20px">
+      <div class="grid cols-2">
+        <div class="card"><h3>Composite &amp; confidence</h3>
+          <div class="ringbox">
+            ${ring(h.conf, m.color)}
+            <div class="subs"><div class="subrow"><span style="color:var(--muted)">Composite score</span><span></span><span class="num" style="color:${m.color};font-size:15px">${s.toFixed(0)}</span></div>
+              <div class="note">Confidence = 100 − missing-data − divergence − boundary − proxy penalties</div>
+            </div>
+          </div>
+          ${subrows}
+        </div>
+        <div class="grid" style="gap:14px;align-content:start">
+          <div class="card"><h3>Position snapshot</h3>
+            <div class="cfg"><div class="lbl"><b>Allocation</b></div><div></div><div class="val">${pct(h.alloc)}</div></div>
+            <div class="cfg"><div class="lbl"><b>Gain / Loss</b></div><div></div><div class="val" style="color:${h.gain>=0?'var(--green)':'var(--red)'}">${h.gain>=0?'+':''}${pct(h.gain)}</div></div>
+            <div class="cfg"><div class="lbl"><b>Pledged promoter</b></div><div></div><div class="val" style="color:${h.pledge>10?'var(--red)':'var(--green)'}">${h.pledge}%</div></div>
+            <div class="cfg" style="border-bottom:none"><div class="lbl"><b>Next review</b></div><div></div><div class="val" style="font-size:12px">${h.next}</div></div>
+          </div>
+          <div class="card"><h3>Primary drivers</h3><ul class="drivers">${drivers}</ul></div>
+        </div>
+      </div>
+      ${watch? `<div class="card" style="margin-top:14px"><h3>Watch flags</h3><ul class="drivers">${watch}</ul></div>`:''}
+      ${whyBlock(h,d)}
+      ${trimBox}
+      <div class="card" style="margin-top:14px"><h3>FIFO tax lots <span class="tag">per-lot · oldest-first</span></h3>
+        <div style="overflow-x:auto"><table><thead><tr><th>Lot</th><th>Trade date</th><th class="num">Qty</th><th class="num">Buy</th><th class="num">LTP</th><th class="num">P&amp;L</th><th class="num">%</th><th class="num">Held</th><th class="num">To LTCG</th></tr></thead>
+        <tbody>${lotRows(h, t && t.qty && t.qty.toString().includes('all')? h.lots.length : 0)}</tbody></table></div>
+        <div class="note" style="margin-top:8px">Indian CGT is per-lot FIFO — a trim sells the <b>oldest unsold lots first</b>. ${(h.lots&&h.lots.length>=4)?'Showing '+h.lots.length+' representative lots.':''}</div>
+      </div>
+    </div>`;
+  $('#detail').classList.add('open'); $('#scrim').classList.add('open');
+}
+function closeDetail(){ $('#detail').classList.remove('open'); $('#scrim').classList.remove('open'); }
+
+/* ================= INTERACTIONS ================= */
+function setW(k,v){ W[k]=v; const el=$('#w-'+k); if(el){el.textContent=v+'%';} if(view==='policy'){const t=Object.values(W).reduce((a,b)=>a+b,0); const tot=$('#policy-total'); } render(); }
+document.addEventListener('click',e=>{ const t=e.target.closest('.tab'); if(t){ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); view=t.dataset.v; render(); } });
+['f1','f2','f3'].forEach((id,i)=>{ /* decorative file names on click handled in runEngine */ });
+function loadSample(){ ['f1','f2','f3'].forEach((id,i)=>{ const el=document.getElementById(id); if(el){ el.classList.add('file'); el.innerHTML=`<div class="ic">✅</div><b>${['portfolio.csv','fundamentals_screener.csv','trade_ledger.csv'][i]}</b><div class="fn">${['9 rows · 2026-08-15','118 rows · 2026-08-15','47 fills · 2026-08-15'][i]}</div><div class="sub">loaded (mock)</div>`; } }); }
+function runEngine(){
+  if(!ran){ document.querySelectorAll('#f1,#f2,#f3').forEach(x=>x.classList.add('file')); }
+  const overlay=$('#overlay'), steps=$('#steps');
+  overlay.classList.add('open');
+  const s=['Parse 3 files & normalise dates (DD-MM vs ISO)','Reconcile cost basis: Σ(lot qty × buy) == Invested','Build per-lot FIFO tax engine (days-to-LTCG, lot P&L)','Run Stage 1 hard gates (governance · allocation · tax-defer)','Score Stage 2 composite per bucket profile','Rank candidates · theme rebalance · tax-year budget','Write decisions.json (append-only log)'];
+  steps.innerHTML = s.map((x,i)=>`<div class="step" id="st${i}"><span class="spinner" style="opacity:0"></span>${x}</div>`).join('');
+  let i=0;
+  const tick=()=>{
+    if(i>0){const p=$('#st'+(i-1)); p.classList.add('done'); p.classList.remove('active'); p.querySelector('.spinner').style.opacity=0;}
+    if(i<s.length){ const c=$('#st'+i); c.classList.add('active'); c.querySelector('.spinner').style.opacity=1; i++; setTimeout(tick, i===s.length?300:220); }
+    else { setTimeout(()=>{ overlay.classList.remove('open'); ran=true; view='decisions'; document.querySelector('[data-v="decisions"]').classList.add('active'); document.querySelectorAll('.tab').forEach(x=>{ if(x.dataset.v!=='decisions') x.classList.remove('active'); }); render(); }, 350); }
+  };
+  tick();
+}
+
+render();
+</script>
+<div class="foot">Capital Steward Engine · UI prototype · mock data (mirrors spec sample rows) · single-file, no dependencies · React/TypeScript production build recommended · visual reference only — the browser never computes decisions</div>
+</body>
+</html>
