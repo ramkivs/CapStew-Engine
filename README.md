@@ -17,6 +17,8 @@ Portfolio discipline · valuation · tax · risk.
 | Phase 2 implementation audit A–J | ✅ PASSED |
 | Phase 3 (tax · history · provenance) | ✅ COMPLETE |
 | React/UI integration | ✅ COMPLETE (gates UI-1…UI-6) |
+| UI Product Acceptance (UAT-01…06) | ✅ PASSED |
+| Release gate (R-01…R-10) | ✅ PASSED — tagged `v1.0.0` (`RELEASE-v1.md` + `MANIFEST.sha256`) |
 
 ## Pipeline
 
