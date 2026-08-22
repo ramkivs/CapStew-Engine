@@ -1,0 +1,85 @@
+# Capital Steward Engine — policy (v1 · D-01…D-15)
+# This file is the OPERATIONAL serialization of the signed D-01…D-15 policy in
+# Methodology Freeze §14 — it must not introduce or silently alter policy values.
+# Phase 1 reads: ltcg_period_days, recon_tolerance_inr, buckets.
+# Phase 2 reads: bands, thresholds, weights, participation, review cadence.
+
+policy_version: 1
+effective_from: 2026-08-22
+
+# D-01 bucket definitions (market cap, ₹ Cr)
+buckets:
+  large_cap_min_mcap_cr: 20000
+  mid_cap_min_mcap_cr: 5000
+  small_cap_min_mcap_cr: 500
+
+# D-02 target allocation bands (% of portfolio)
+target_bands:
+  large: [4.0, 8.0]
+  mid: [2.0, 5.0]
+  small_micro: [1.0, 3.0]
+
+# D-03 absolute max single-stock cap (G2)
+max_single_stock_pct: 10.0
+
+# D-04 rebalance trigger (× target mid-point)
+rebalance_trigger_multiple: 1.5
+
+# D-05 quality floor / thesis break (G1)
+quality_floor: 40
+quality_drop_pts: 20
+
+# D-06 promoter pledge spike (G1)
+pledge_threshold_pct: 10.0
+pledge_qoq_pp: 5.0
+
+# D-07 LTCG defer window (G3) + valuation-extreme suppress override
+ltcg_defer_window_days: 30
+valuation_extreme_suppress: 85
+
+# D-08 composite band boundaries (0–100)
+bands:
+  hold_max: 30      # 0–30  HOLD
+  watch_max: 55     # 31–55 WATCH
+  trim_max: 75      # 56–75 TRIM
+                     # 76–100 HARVEST
+
+# D-09 category weights (sum = 100)
+weights:
+  position_sizing: 25
+  valuation_stretch: 25
+  quality_drift: 20
+  tax_efficiency: 15
+  opportunity_cost: 10
+  technical_regime: 5
+
+# D-10 re-rating share thresholds (%)
+rerating_strong_pct: 65
+rerating_critical_pct: 80
+
+# D-11 min meaningful position (dust floor)
+min_position_alloc_pct: 0.5
+min_position_value: 5000
+
+# D-12 participation cap (C3)
+participation_adv_pct: 10       # % of 20d ADV, when ADV known
+participation_position_pct: 25  # % of position, when ADV unknown
+
+# D-13 transaction cost assumptions (%)
+txn_cost_liquid_pct: 0.35
+txn_cost_microcap_pct: 1.0
+
+# D-14 opportunity-cost hurdles (% p.a. pre-tax)
+hurdle_nifty_pct: 11.0
+hurdle_liquid_pct: 6.4
+
+# D-15 review cadence (days)
+review_cadence:
+  hold_high_conf_days: 90
+  hold_low_conf_days: 30
+  action_verify_days: 7
+  gate_fired_days: 1
+
+# Phase-1 operational parameters
+ltcg_period_days: 365
+recon_tolerance_inr: 0.01
