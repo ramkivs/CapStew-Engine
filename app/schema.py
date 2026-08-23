@@ -12,6 +12,7 @@ from typing import Any
 
 
 DECISIONS = {"HOLD", "WATCH", "TRIM", "HARVEST", "EXIT", "NO-DECISION"}
+OPPORTUNITY_COST_SOURCES = {"peg_proxy", "watchlist", "missing"}
 SUBSCORE_KEYS = (
     "position_sizing",
     "valuation_stretch",
@@ -439,6 +440,20 @@ def _validate_reason_tree(value: Any, path: str, errors: list[str]) -> None:
     for key in ("stage1", "stage2"):
         if key in value and not _is_mapping(value.get(key)):
             _add(errors, f"{path}.{key}", "expected object")
+    stage2 = value.get("stage2")
+    if _is_mapping(stage2) and "opportunity_cost" in stage2:
+        _validate_opportunity_cost_evidence(stage2.get("opportunity_cost"), f"{path}.stage2.opportunity_cost", errors)
+
+
+def _validate_opportunity_cost_evidence(value: Any, path: str, errors: list[str]) -> None:
+    _require(value, path, ("source",), errors)
+    if not _is_mapping(value):
+        return
+    source = value.get("source")
+    if source not in OPPORTUNITY_COST_SOURCES:
+        _add(errors, f"{path}.source", f"expected one of {sorted(OPPORTUNITY_COST_SOURCES)}")
+    if "score" in value:
+        _number_range(value.get("score"), f"{path}.score", errors, 0, 100, nullable=True)
 
 
 def _validate_why_now(value: Any, path: str, errors: list[str]) -> None:
