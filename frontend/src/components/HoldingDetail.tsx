@@ -1,5 +1,5 @@
 import type { Holding } from '../types';
-import { Badge, Bar, Ring, inr, num, pct } from './ui';
+import { Badge, Bar, Ring, TagChip, inr, num, pct } from './ui';
 import { CAT_COLORS } from './DecisionsView';
 
 const CAT_LABELS: Record<string, string> = {
@@ -15,15 +15,19 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
   if (!holding) return null;
   const h = holding;
   const m = meta(h.decision);
-  const d = h.decision;
   const weights = h.subscores;
+  const gate = gateMeta(h);
+  const confidenceBreakdown = Object.entries(h.confidence_breakdown ?? {});
+  const incompleteInputs = Object.entries(h.data_completeness)
+    .filter(([, ok]) => ok === false)
+    .map(([k]) => k.replace(/_/g, ' '));
 
   return (
     <>
       <div className={`scrim ${holding ? 'open' : ''}`} onClick={onClose} />
       <div className={`slideover ${holding ? 'open' : ''}`} role="dialog" aria-modal="true">
-        <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ flex: 1 }}>
+        <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 220 }}>
             <div style={{ fontSize: 11, color: 'var(--dim)', fontFamily: 'var(--mono)' }}>
               {h.ticker ?? h.instrument}
             </div>
@@ -32,33 +36,56 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
             </div>
           </div>
           <Badge decision={h.decision} />
+          <TagChip color={gate.color}>{gate.label}</TagChip>
           <span className="chip warn">Human review required</span>
           <button className="btn" style={{ padding: '6px 12px' }} onClick={onClose}>✕</button>
         </div>
 
         <div style={{ padding: '16px 20px' }}>
+          <div className="grid cols-3" style={{ marginBottom: 14 }}>
+            <div className="stat">
+              <div className="k">Final backend decision</div>
+              <div className="v" style={{ fontSize: 18 }}><Badge decision={h.decision} /></div>
+              <div className="s">Action badge; not recalculated in browser.</div>
+            </div>
+            <div className="stat">
+              <div className="k">Composite score</div>
+              <div className="v" style={{ color: m }}>{num(h.composite_score)}</div>
+              <div className="s">Supporting Stage 2 signal, not the action itself.</div>
+            </div>
+            <div className="stat">
+              <div className="k">Gate / override state</div>
+              <div className="v" style={{ fontSize: 16 }}><TagChip color={gate.color}>{gate.label}</TagChip></div>
+              <div className="s">From backend Stage 1 fields.</div>
+            </div>
+          </div>
+
           <div className="grid cols-2">
             <div className="card">
-              <h3>Composite & confidence</h3>
+              <h3>Confidence / trust <span className="tag">20–95 scale · not expected return</span></h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <Ring value={h.confidence ?? 0} color={m} />
                 <div className="subs">
-                  <div className="subrow">
-                    <span className="muted">Composite score</span><span></span>
-                    <span className="num" style={{ color: m, fontSize: 15 }}>{num(h.composite_score)}</span>
-                  </div>
                   <div className="note">
-                    Confidence = round(clamp(100 − Σ penalties, 20, 95)) — breakdown lists the penalties.
+                    Confidence is the backend evidence-quality/trust indicator. It does <b>not</b> mean expected upside, probability of profit, or certainty of outcome.
                   </div>
+                  <Row label="Evidence tier" value={h.evidence?.tier ?? '—'} />
+                  <Row label="Evidence coverage" value={h.evidence ? `${(h.evidence.coverage * 100).toFixed(0)}%` : '—'} />
+                  <Row label="Critical missing" value={h.evidence?.critical_categories_missing.length ? h.evidence.critical_categories_missing.join(', ') : 'none reported'} />
                 </div>
               </div>
-              {Object.entries(CAT_LABELS).map(([k, label]) => (
-                <div key={k} className="subrow" style={{ marginTop: 9 }}>
-                  <span>{label} <span className="w">{h.reason_tree.stage2.subscores ? '' : ''}</span></span>
-                  <Bar value={weights[k as keyof typeof weights] ?? 0} color={CAT_COLORS[k]} />
-                  <span className="num" style={{ fontFamily: 'var(--mono)' }}>{num(weights[k as keyof typeof weights])}</span>
+
+              <div style={{ marginTop: 12 }}>
+                <div className="note" style={{ marginBottom: 6 }}>
+                  Backend-reported confidence breakdown / penalties:
                 </div>
-              ))}
+                {confidenceBreakdown.length > 0 ? confidenceBreakdown.map(([label, value]) => (
+                  <div key={label} className="cfg" style={{ gridTemplateColumns: '1fr auto', padding: '6px 0' }}>
+                    <div className="lbl"><b>{label.replace(/_/g, ' ')}</b></div>
+                    <div className="val">{num(value, 1)}</div>
+                  </div>
+                )) : <div className="note">No confidence breakdown supplied.</div>}
+              </div>
             </div>
 
             <div className="grid" style={{ gap: 14, alignContent: 'start' }}>
@@ -69,19 +96,68 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
                   color={(h.gain_pct ?? 0) >= 0 ? 'var(--green)' : 'var(--red)'} />
                 <Row label="Pledged promoter" value={`${num(h.pledge_pct)}%`}
                   color={(h.pledge_pct ?? 0) > 10 ? 'var(--red)' : 'var(--green)'} />
-                <Row label="Next review" value={h.next_review_date ?? '—'} />
+                <Row label="Next review" value={h.next_review_date ?? '—'} color={h.next_review_date ? 'var(--yellow)' : undefined} />
+                <div className="note" style={{ marginTop: 6 }}>
+                  Review date is backend-provided. This view does not create a new schedule.
+                </div>
               </div>
               <div className="card">
-                <h3>Decision path</h3>
-                <div className="note" style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>
+                <h3>Decision path <span className="tag">gate state separated from score</span></h3>
+                <Row label="Stage 1 fired" value={h.stage1.fired ? 'yes' : 'no'} color={h.stage1.fired ? 'var(--red)' : 'var(--green)'} />
+                <Row label="Winning gate" value={h.stage1.winning_gate ?? '—'} color={h.stage1.fired ? 'var(--red)' : undefined} />
+                <Row label="Gates fired" value={h.stage1.gates_fired.length ? h.stage1.gates_fired.join(', ') : 'none'} />
+                <Row label="Tax defer suppressed" value={h.stage1.tax_defer_suppressed ? 'yes' : 'no'} color={h.stage1.tax_defer_suppressed ? 'var(--yellow)' : undefined} />
+                <div className="note" style={{ marginTop: 8, fontFamily: 'var(--mono)', color: 'var(--text)' }}>
                   {h.reason_tree.decision_path}
                 </div>
-                <div className="note" style={{ marginTop: 6 }}>
-                  Evidence: {h.evidence?.tier ?? '—'} · coverage {h.evidence ? `${(h.evidence.coverage * 100).toFixed(0)}%` : '—'}
-                  {h.evidence?.critical_categories_missing.length
-                    ? ` · missing critical: ${h.evidence.critical_categories_missing.join(', ')}` : ''}
-                </div>
               </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginTop: 14 }}>
+            <h3>Composite score contributors <span className="tag">backend subscore display</span></h3>
+            {Object.entries(CAT_LABELS).map(([k, label]) => (
+              <div key={k} className="subrow" style={{ marginTop: 9 }}>
+                <span>{label}</span>
+                <Bar value={weights[k as keyof typeof weights] ?? 0} color={CAT_COLORS[k]} />
+                <span className="num" style={{ fontFamily: 'var(--mono)' }}>{num(weights[k as keyof typeof weights])}</span>
+              </div>
+            ))}
+            <div className="note" style={{ marginTop: 10 }}>
+              These are authoritative backend subscores. The frontend only renders the supplied values.
+            </div>
+          </div>
+
+          <div className="card" style={{ marginTop: 14 }}>
+            <h3>Why now / actionability context</h3>
+            <div className="note" style={{ marginBottom: 8 }}>
+              Primary trigger: <b style={{ color: 'var(--text)' }}>{h.why_now?.primary_trigger ?? '—'}</b>
+            </div>
+            {h.why_now?.contributors?.length ? (
+              <div className="grid cols-3">
+                {h.why_now.contributors.map((c) => (
+                  <div key={c.label} className="stat">
+                    <div className="k">{c.label}</div>
+                    <div className="v" style={{ fontSize: 16 }}>{num(c.value, 1)}</div>
+                    <div className="s">weight {num(c.weight, 2)}</div>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="note">No contributor list supplied.</div>}
+          </div>
+
+          <div className="card" style={{ marginTop: 14 }}>
+            <h3>Evidence and data-quality caveats <span className="tag">trust boundary</span></h3>
+            <div className="note">
+              Evidence: {h.evidence?.tier ?? '—'} · coverage {h.evidence ? `${(h.evidence.coverage * 100).toFixed(0)}%` : '—'}
+              {h.evidence?.critical_categories_missing.length
+                ? ` · missing critical: ${h.evidence.critical_categories_missing.join(', ')}` : ' · no critical missing categories reported'}
+            </div>
+            <div className="note" style={{ marginTop: 6 }}>
+              data quality: {Object.entries(h.data_quality).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ') || '—'}
+            </div>
+            <div className="note" style={{ marginTop: 6 }}>
+              completeness: {incompleteInputs.length ? `partial ${incompleteInputs.join(', ')}` : 'all reported categories complete'}
             </div>
           </div>
 
@@ -116,7 +192,10 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
 
           {h.trim ? (
             <div className="card" style={{ marginTop: 14 }}>
-              <h3>Suggested trim <span className="tag">FIFO lot-aware · mode {h.trim.mode}</span></h3>
+              <h3>Suggested trim <span className="tag">authoritative FIFO lot-aware payload · mode {h.trim.mode}</span></h3>
+              <div className="note" style={{ marginBottom: 10 }}>
+                Quantity, value, mode, lots, taxes, and costs are backend-provided. The browser does not calculate trim, sizing, or tax effects.
+              </div>
               <div className="grid cols-3">
                 <div className="stat"><div className="k">Qty</div><div className="v" style={{ fontSize: 17 }}>
                   {h.trim.suggested_qty == null ? '—' : `${num(h.trim.suggested_qty)} / ${h.qty_held ?? '—'}`}</div></div>
@@ -166,7 +245,7 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
               </table>
             </div>
             <div className="note" style={{ marginTop: 8 }}>
-              Indian CGT is per-lot FIFO — a trim sells the <b>oldest unsold lots first</b>.
+              Indian CGT is per-lot FIFO — a trim sells the <b>oldest unsold lots first</b>. This section renders backend lot data only.
             </div>
           </div>
 
@@ -201,4 +280,14 @@ function meta(d: string): string {
     EXIT: '#f87171', 'NO-DECISION': '#94a3b8',
   };
   return map[d] ?? '#34d399';
+}
+
+function gateMeta(h: Holding): { label: string; color: string } {
+  if (h.stage1.fired) {
+    return { label: h.stage1.winning_gate ?? h.stage1.gates_fired[0] ?? 'Stage 1 gate', color: 'var(--red)' };
+  }
+  if (h.stage1.tax_defer_suppressed) {
+    return { label: 'Tax defer suppressed', color: 'var(--yellow)' };
+  }
+  return { label: 'No Stage 1 gate', color: 'var(--green)' };
 }

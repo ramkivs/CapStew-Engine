@@ -91,6 +91,27 @@ export function InputsView({ running, onRunSample, onRunFiles }: {
         </div>
       </div>
 
+      <div className="card" style={{ marginTop: 14 }}>
+        <h3>Reconciliation / validation trust gate <span className="tag">G0 semantics unchanged</span></h3>
+        <div className="grid cols-3">
+          <div className="note">
+            <b style={{ color: 'var(--text)' }}>Pass</b><br />
+            A decisions payload is shown only after the backend accepts required files and completes reconciliation checks.
+          </div>
+          <div className="note">
+            <b style={{ color: 'var(--text)' }}>Warning</b><br />
+            Non-blocking backend warnings are surfaced in the Decisions trust banner with their payload codes and messages.
+          </div>
+          <div className="note">
+            <b style={{ color: 'var(--text)' }}>Blocking failure</b><br />
+            Hard G0 mismatches remain backend errors; the UI displays the returned error instead of inventing a decision.
+          </div>
+        </div>
+        <div className="note" style={{ marginTop: 10 }}>
+          This screen explains the validation path only. It does not perform reconciliation, scoring, gating, trim, sizing, or tax calculations in the browser.
+        </div>
+      </div>
+
       {err ? <div style={{ marginTop: 14 }}><Banner kind="err">⚠ {err}</Banner></div> : null}
 
       {step >= 0 ? (
