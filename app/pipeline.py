@@ -15,6 +15,7 @@ from .lot_engine import build_lots, derive_positions
 from .normalize import map_name_to_ticker
 from .policy import get_ltcg_period_days, get_recon_tolerance, load_policy
 from .reconcile import reconcile
+from .schema import validate_decision_payload
 
 
 def _f2(d: Decimal) -> float:
@@ -162,9 +163,10 @@ def decide_on_foundation(foundation_payload, policy_overrides=None, hysteresis=N
                          apply_hysteresis=False, history=None):
     """Recompute decisions on an existing foundation payload (what-if / run path)."""
     from .decision import decide_all
-    return decide_all(foundation_payload, policy_overrides=policy_overrides,
-                      hysteresis=hysteresis, apply_hysteresis=apply_hysteresis,
-                      history=history)
+    payload = decide_all(foundation_payload, policy_overrides=policy_overrides,
+                         hysteresis=hysteresis, apply_hysteresis=apply_hysteresis,
+                         history=history)
+    return validate_decision_payload(payload)
 
 
 def compute_tax_year(foundation_payload, sold_path, fy="2026-27"):

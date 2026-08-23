@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
+from .schema import validate_decision_payload
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -33,7 +34,9 @@ class RunStore:
         self._conn.execute(_SCHEMA)
         self._conn.commit()
 
-    def save_run(self, payload):
+    def save_run(self, payload, *, validate=False):
+        if validate:
+            validate_decision_payload(payload)
         self._conn.execute(
             "INSERT OR REPLACE INTO runs "
             "(run_id, as_of, engine_version, policy_version, input_hash, content_hash, payload_json, created_at) "
