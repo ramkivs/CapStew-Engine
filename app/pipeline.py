@@ -12,7 +12,7 @@ from . import config
 from .determinism import content_hash
 from .ingest import parse_ledger, parse_portfolio, parse_screener
 from .lot_engine import build_lots, derive_positions
-from .normalize import map_name_to_ticker
+from .symbols import resolve_instrument
 from .policy import get_ltcg_period_days, get_recon_tolerance, load_policy
 from .reconcile import reconcile
 from .schema import validate_decision_payload
@@ -47,9 +47,9 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
     for r in ledger_rows + portfolio_rows:
         name = r["instrument"]
         if name not in tickers:
-            ticker, matched = map_name_to_ticker(name)
-            tickers[name] = ticker
-            if not matched:
+            resolution = resolve_instrument(name, screener_rows=screener_rows)
+            tickers[name] = resolution.ticker
+            if not resolution.matched:
                 warnings.append({
                     "code": "SYMBOL_UNMATCHED", "instrument": name,
                     "message": f"no ticker mapping for {name!r} — will not join to screener (partial-data path)",

@@ -9,7 +9,7 @@ DATE_FORMAT_INFERRED notice rather than rejected.
 import re
 from datetime import date, datetime
 
-from .config import SYMBOL_MAP
+from .symbols import map_name_to_ticker
 
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DDMM_RE = re.compile(r"^\d{2}-\d{2}-\d{4}$")
@@ -42,9 +42,3 @@ def parse_date(raw, *, inferred_notes=None) -> date:
             raise ValueError(f"invalid date {raw!r}") from exc
     raise DateAmbiguousError(f"unrecognized date format {raw!r}")
 
-
-def map_name_to_ticker(name):
-    """Return (ticker, matched). matched=False means SYMBOL_UNMATCHED."""
-    key = (name or "").strip()
-    ticker = SYMBOL_MAP.get(key)
-    return (ticker, ticker is not None)
