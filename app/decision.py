@@ -21,7 +21,7 @@ from .scoring import (
     composite,
     sizing_band_evidence,
     eligibility,
-    opportunity_cost,
+    opportunity_cost_evidence,
     position_sizing,
     quality_drift,
     tax_efficiency,
@@ -50,18 +50,19 @@ def _compute_subscores(pos, lots, policy):
     oldest_days_to_ltcg = lots[0]["days_to_ltcg"] if lots else None
     any_ltcg = any(l["ltcg_eligible"] for l in lots)
     sizing_evidence = sizing_band_evidence(pos.get("bucket"), policy, pos.get("alloc_pct"))
+    opportunity_evidence = opportunity_cost_evidence(f)
     subs = {
         "position_sizing": position_sizing(pos.get("alloc_pct"), pos.get("bucket"), policy),
         "valuation_stretch": valuation_stretch(f),
         "quality_drift": quality_drift(f),
         "tax_efficiency": tax_efficiency(oldest_days_to_ltcg, any_ltcg),
-        "opportunity_cost": opportunity_cost(f),
+        "opportunity_cost": opportunity_evidence["score"],
         "technical_regime": technical_regime(f),
     }
     quality_score = None
     if subs["quality_drift"] is not None:
         quality_score = 100 - subs["quality_drift"]
-    return subs, quality_score, oldest_days_to_ltcg, any_ltcg, sizing_evidence
+    return subs, quality_score, oldest_days_to_ltcg, any_ltcg, sizing_evidence, opportunity_evidence
 
 
 def _drivers(gate, subs, weights, decision_path, caps_note):
@@ -120,7 +121,7 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
     if instrument in blocked:
         return _nod(pos, as_of)
 
-    subs, quality_score, oldest_days_to_ltcg, any_ltcg, sizing_evidence = _compute_subscores(pos, lots, policy)
+    subs, quality_score, oldest_days_to_ltcg, any_ltcg, sizing_evidence, opportunity_evidence = _compute_subscores(pos, lots, policy)
     weights = policy["weights"]
 
     # Four-state data quality (proxy ≠ missing ≠ stale ≠ authoritative)
@@ -259,6 +260,7 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
                 "composite_score": comp,
                 "subscores": subs,
                 "position_sizing": sizing_evidence,
+                "opportunity_cost": opportunity_evidence,
             },
         },
         "why_now": {

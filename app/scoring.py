@@ -13,6 +13,9 @@ PROXY_CATEGORIES = {"valuation_stretch", "quality_drift", "opportunity_cost", "t
 BAND_EDGES = (31, 56, 76)  # enter thresholds used for the confidence boundary penalty
 ASSUMED_SMALL_MICRO_BASIS = "assumed_small_micro"
 CLASSIFIED_BUCKET_BASIS = "classified_bucket"
+OPPORTUNITY_COST_SOURCE_PEG_PROXY = "peg_proxy"
+OPPORTUNITY_COST_SOURCE_WATCHLIST = "watchlist"
+OPPORTUNITY_COST_SOURCE_MISSING = "missing"
 
 # Four-state data-quality model (audit item: proxy ≠ missing).
 # position_sizing comes from the portfolio file, tax_efficiency from the ledger —
@@ -181,6 +184,24 @@ def opportunity_cost(f):
     if peg is None or peg <= 0:
         return 50
     return round(_clamp(50 + (peg - 1.5) * 40))
+
+
+def opportunity_cost_source(f):
+    """CR-007 source provenance for the Opportunity Cost category.
+
+    Watchlist and D-14 hurdles are not operational in this CR. When fundamentals
+    exist, the scorer remains the authorized PEG proxy, including the existing
+    neutral proxy score for missing/invalid PEG. With no fundamentals, the
+    category remains missing.
+    """
+    if not f:
+        return OPPORTUNITY_COST_SOURCE_MISSING
+    return OPPORTUNITY_COST_SOURCE_PEG_PROXY
+
+
+def opportunity_cost_evidence(f):
+    """Return non-decision provenance for Opportunity Cost scoring."""
+    return {"source": opportunity_cost_source(f), "score": opportunity_cost(f)}
 
 
 def technical_regime(f):
