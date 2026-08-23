@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from . import config
 from .pipeline import decide_on_foundation, run_foundation
+from .schema import DecisionPayloadValidationError, validate_decision_payload
 from .store import RunStore
 
 app = FastAPI(
@@ -27,6 +28,20 @@ app = FastAPI(
 # In-memory cache of the most recent foundation (single-process local v1).
 _LAST_FOUNDATION: dict = {}
 _LAST_TAX: dict = {}
+
+
+def _payload_validation_failure(exc: DecisionPayloadValidationError):
+    raise HTTPException(
+        status_code=500,
+        detail={
+            "error": {
+                "code": "INTERNAL_ERROR",
+                "severity": "blocking",
+                "message": "internal DecisionPayload validation failed",
+                "details": {"errors": list(exc.errors)},
+            }
+        },
+    ) from exc
 
 
 def _save(upload: UploadFile, dirpath: Path) -> Path:
@@ -98,32 +113,39 @@ def run_endpoint(
     sold: UploadFile | None = File(default=None),
 ):
     from .pipeline import compute_tax_year
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
-        p = _save(portfolio, tmp)
-        s = _save(screener, tmp)
-        l = _save(ledger, tmp)
-        foundation = run_foundation(p, s, l)
-        store = RunStore()
-        history = store.previous_holdings()          # persisted prior run, not memory
-        payload = decide_on_foundation(foundation, apply_hysteresis=True, history=history)
-        if sold is not None:
-            sp = _save(sold, tmp)
-            tax = compute_tax_year(foundation, sp)
-            payload["tax_year"] = tax
-            payload["portfolio_summary"]["tax"].update({
-                "provisional": False,
-                "ltcg_booked": tax["summary"]["gross"]["ltcg"],
-                "stcg_booked": tax["summary"]["gross"]["stcg"],
-                "ltcg_headroom": tax["summary"]["exemption"]["headroom"],
-                "stcl_harvestable": tax["summary"]["gross"]["stcl"],
-                "note": "realised from sold.csv (FIFO-matched) + unrealised split of open book",
-            })
-            _LAST_TAX.clear(); _LAST_TAX.update(tax)
-        store.save_run(payload)
-        store.close()
-        _LAST_FOUNDATION.clear(); _LAST_FOUNDATION.update(foundation)
-        return payload
+    store = None
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            p = _save(portfolio, tmp)
+            s = _save(screener, tmp)
+            l = _save(ledger, tmp)
+            foundation = run_foundation(p, s, l)
+            store = RunStore()
+            history = store.previous_holdings()          # persisted prior run, not memory
+            payload = decide_on_foundation(foundation, apply_hysteresis=True, history=history)
+            if sold is not None:
+                sp = _save(sold, tmp)
+                tax = compute_tax_year(foundation, sp)
+                payload["tax_year"] = tax
+                payload["portfolio_summary"]["tax"].update({
+                    "provisional": False,
+                    "ltcg_booked": tax["summary"]["gross"]["ltcg"],
+                    "stcg_booked": tax["summary"]["gross"]["stcg"],
+                    "ltcg_headroom": tax["summary"]["exemption"]["headroom"],
+                    "stcl_harvestable": tax["summary"]["gross"]["stcl"],
+                    "note": "realised from sold.csv (FIFO-matched) + unrealised split of open book",
+                })
+                _LAST_TAX.clear(); _LAST_TAX.update(tax)
+            validate_decision_payload(payload)
+            store.save_run(payload, validate=True)
+            _LAST_FOUNDATION.clear(); _LAST_FOUNDATION.update(foundation)
+            return payload
+    except DecisionPayloadValidationError as exc:
+        _payload_validation_failure(exc)
+    finally:
+        if store is not None:
+            store.close()
 
 
 class WhatIfRequest(BaseModel):
@@ -142,39 +164,49 @@ def run_sample_endpoint():
 
     from .pipeline import compute_tax_year
 
-    fx = P(__file__).resolve().parent.parent / "fixtures"
-    foundation = run_foundation(fx / "portfolio.csv", fx / "screener.csv", fx / "ledger.csv")
-    store = RunStore()
-    history = store.previous_holdings()
-    payload = decide_on_foundation(foundation, apply_hysteresis=True, history=history)
-    sold = fx / "sold_sample.csv"
-    if sold.exists():
-        tax = compute_tax_year(foundation, sold)
-        payload["tax_year"] = tax
-        payload["portfolio_summary"]["tax"].update({
-            "provisional": False,
-            "ltcg_booked": tax["summary"]["gross"]["ltcg"],
-            "stcg_booked": tax["summary"]["gross"]["stcg"],
-            "ltcg_headroom": tax["summary"]["exemption"]["headroom"],
-            "stcl_harvestable": tax["summary"]["gross"]["stcl"],
-            "note": "realised from fixtures/sold_sample.csv (FIFO-matched) + unrealised split of open book",
-        })
-        _LAST_TAX.clear(); _LAST_TAX.update(tax)
-    store.save_run(payload)
-    store.close()
-    _LAST_FOUNDATION.clear(); _LAST_FOUNDATION.update(foundation)
-    return payload
+    store = None
+    try:
+        fx = P(__file__).resolve().parent.parent / "fixtures"
+        foundation = run_foundation(fx / "portfolio.csv", fx / "screener.csv", fx / "ledger.csv")
+        store = RunStore()
+        history = store.previous_holdings()
+        payload = decide_on_foundation(foundation, apply_hysteresis=True, history=history)
+        sold = fx / "sold_sample.csv"
+        if sold.exists():
+            tax = compute_tax_year(foundation, sold)
+            payload["tax_year"] = tax
+            payload["portfolio_summary"]["tax"].update({
+                "provisional": False,
+                "ltcg_booked": tax["summary"]["gross"]["ltcg"],
+                "stcg_booked": tax["summary"]["gross"]["stcg"],
+                "ltcg_headroom": tax["summary"]["exemption"]["headroom"],
+                "stcl_harvestable": tax["summary"]["gross"]["stcl"],
+                "note": "realised from fixtures/sold_sample.csv (FIFO-matched) + unrealised split of open book",
+            })
+            _LAST_TAX.clear(); _LAST_TAX.update(tax)
+        validate_decision_payload(payload)
+        store.save_run(payload, validate=True)
+        _LAST_FOUNDATION.clear(); _LAST_FOUNDATION.update(foundation)
+        return payload
+    except DecisionPayloadValidationError as exc:
+        _payload_validation_failure(exc)
+    finally:
+        if store is not None:
+            store.close()
 
 
 @app.post("/api/v1/what-if")
 def what_if(req: WhatIfRequest):
     if not _LAST_FOUNDATION:
         raise HTTPException(status_code=404, detail="no run yet — POST /api/v1/run first")
-    # Fresh hysteresis, no history, no persistence, no policy mutation.
-    payload = decide_on_foundation(_LAST_FOUNDATION, policy_overrides=req.policy_overrides,
-                                   apply_hysteresis=False)
-    payload["run_id"] = "whatif_" + (req.run_id or _LAST_FOUNDATION["run_id"])
-    return payload
+    try:
+        # Fresh hysteresis, no history, no persistence, no policy mutation.
+        payload = decide_on_foundation(_LAST_FOUNDATION, policy_overrides=req.policy_overrides,
+                                       apply_hysteresis=False)
+        payload["run_id"] = "whatif_" + (req.run_id or _LAST_FOUNDATION["run_id"])
+        return validate_decision_payload(payload)
+    except DecisionPayloadValidationError as exc:
+        _payload_validation_failure(exc)
 
 
 @app.get("/api/v1/decisions")
