@@ -316,9 +316,9 @@ def test_golden_trilogy_and_agi_unchanged(payload):
     assert agi["evidence"]["tier"] == "INSUFFICIENT"
 
 
-def test_cr009_fields_not_required_and_schema_version_not_added(payload):
+def test_no_forbidden_post_cr009_fields_or_schema_version(payload):
     serialized = json.dumps(payload, sort_keys=True)
-    for forbidden in ("bucket_basis", "band_basis", "opportunity_cost.source", "schema_version"):
+    for forbidden in ("opportunity_cost.source", "hurdle_d14", "schema_version"):
         assert forbidden not in serialized
     validate_decision_payload(payload)
 

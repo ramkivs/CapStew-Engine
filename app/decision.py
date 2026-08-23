@@ -19,6 +19,7 @@ from .scoring import (
     band_of,
     categorize_quality,
     composite,
+    sizing_band_evidence,
     eligibility,
     opportunity_cost,
     position_sizing,
@@ -48,6 +49,7 @@ def _compute_subscores(pos, lots, policy):
     f = pos.get("fundamentals")
     oldest_days_to_ltcg = lots[0]["days_to_ltcg"] if lots else None
     any_ltcg = any(l["ltcg_eligible"] for l in lots)
+    sizing_evidence = sizing_band_evidence(pos.get("bucket"), policy, pos.get("alloc_pct"))
     subs = {
         "position_sizing": position_sizing(pos.get("alloc_pct"), pos.get("bucket"), policy),
         "valuation_stretch": valuation_stretch(f),
@@ -59,7 +61,7 @@ def _compute_subscores(pos, lots, policy):
     quality_score = None
     if subs["quality_drift"] is not None:
         quality_score = 100 - subs["quality_drift"]
-    return subs, quality_score, oldest_days_to_ltcg, any_ltcg
+    return subs, quality_score, oldest_days_to_ltcg, any_ltcg, sizing_evidence
 
 
 def _drivers(gate, subs, weights, decision_path, caps_note):
@@ -118,11 +120,11 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
     if instrument in blocked:
         return _nod(pos, as_of)
 
-    subs, quality_score, oldest_days_to_ltcg, any_ltcg = _compute_subscores(pos, lots, policy)
+    subs, quality_score, oldest_days_to_ltcg, any_ltcg, sizing_evidence = _compute_subscores(pos, lots, policy)
     weights = policy["weights"]
 
     # Four-state data quality (proxy ≠ missing ≠ stale ≠ authoritative)
-    quality = categorize_quality(subs, stale_files)
+    quality = categorize_quality(subs, stale_files, position_sizing_basis=sizing_evidence["band_basis"])
     proxy_count = sum(1 for v in quality.values() if v == "proxy")
     stale_cat_count = sum(1 for v in quality.values() if v == "stale")
 
@@ -203,6 +205,8 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
         "instrument": instrument,
         "ticker": pos.get("ticker"),
         "bucket": pos.get("bucket"),
+        "bucket_basis": sizing_evidence["bucket_basis"],
+        "band_basis": sizing_evidence["band_basis"],
         "alloc_pct": pos.get("alloc_pct"),
         "gain_pct": pos.get("gain_pct"),
         "current_value": pos.get("current_value"),
@@ -239,9 +243,23 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
         },
         "reason_tree": {
             "decision_path": decision_path,
-            "stage1": {"gates_fired": gate["gates_fired"], "winning_gate": gate["winning_gate"],
-                       "tax_defer_suppressed": gate["tax_defer_suppressed"]},
-            "stage2": {"composite_score": comp, "subscores": subs},
+            "stage1": {
+                "gates_fired": gate["gates_fired"],
+                "winning_gate": gate["winning_gate"],
+                "tax_defer_suppressed": gate["tax_defer_suppressed"],
+                "g2_allocation": {
+                    "fired": "G2_allocation" in gate["gates_fired"],
+                    "band_basis": sizing_evidence["band_basis"],
+                    "band": sizing_evidence["band"],
+                    "alloc_pct": sizing_evidence["alloc_pct"],
+                    "cap_pct": sizing_evidence["cap_pct"],
+                },
+            },
+            "stage2": {
+                "composite_score": comp,
+                "subscores": subs,
+                "position_sizing": sizing_evidence,
+            },
         },
         "why_now": {
             "primary_trigger": (f"{gate['winning_gate']} — {gate['gates_fired'][0] if gate['gates_fired'] else ''}"

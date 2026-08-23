@@ -11,6 +11,8 @@ WEIGHT_KEYS = [
 ]
 PROXY_CATEGORIES = {"valuation_stretch", "quality_drift", "opportunity_cost", "technical_regime"}
 BAND_EDGES = (31, 56, 76)  # enter thresholds used for the confidence boundary penalty
+ASSUMED_SMALL_MICRO_BASIS = "assumed_small_micro"
+CLASSIFIED_BUCKET_BASIS = "classified_bucket"
 
 # Four-state data-quality model (audit item: proxy ≠ missing).
 # position_sizing comes from the portfolio file, tax_efficiency from the ledger —
@@ -27,13 +29,20 @@ CATEGORY_FILE = {
 }
 
 
-def categorize_quality(subs, stale_files):
-    """Map each category to AUTHORITATIVE | PROXY | MISSING | STALE."""
+def categorize_quality(subs, stale_files, position_sizing_basis=None):
+    """Map each category to AUTHORITATIVE | PROXY | MISSING | STALE.
+
+    CR-009: when position sizing is available only through the approved
+    small/micro fallback for an unclassified bucket, disclose it as proxy rather
+    than authoritative. This does not change the sizing score or gate math.
+    """
     stale = set(stale_files or [])
     q = {}
     for k in WEIGHT_KEYS:
         if subs.get(k) is None:
             q[k] = "missing"
+        elif k == "position_sizing" and position_sizing_basis == ASSUMED_SMALL_MICRO_BASIS:
+            q[k] = "proxy"
         elif k in AUTHORITATIVE_CATEGORIES:
             q[k] = "stale" if CATEGORY_FILE[k] in stale else "authoritative"
         else:
@@ -52,6 +61,25 @@ def band_for(bucket, policy):
     if bucket == "mid":
         return tuple(tb["mid"])
     return tuple(tb["small_micro"])
+
+
+def band_basis_for(bucket):
+    """Return the disclosed sizing-band basis without changing bucket classification."""
+    return ASSUMED_SMALL_MICRO_BASIS if bucket is None else CLASSIFIED_BUCKET_BASIS
+
+
+def sizing_band_evidence(bucket, policy, alloc_pct=None):
+    """CR-009 disclosure for the band used by position sizing / G2 evidence."""
+    band = band_for(bucket, policy)
+    basis = band_basis_for(bucket)
+    return {
+        "bucket_basis": basis,
+        "band_basis": basis,
+        "bucket": bucket,
+        "band": [float(band[0]), float(band[1])],
+        "alloc_pct": alloc_pct,
+        "cap_pct": float(band[1]),
+    }
 
 
 def _is_financial(sub_sector):

@@ -286,6 +286,10 @@ def _validate_holding(value: Any, path: str, errors: list[str]) -> None:
     _string(value.get("instrument"), f"{path}.instrument", errors)
     _string(value.get("ticker"), f"{path}.ticker", errors, nullable=True)
     _string(value.get("bucket"), f"{path}.bucket", errors, nullable=True)
+    if "bucket_basis" in value:
+        _string(value.get("bucket_basis"), f"{path}.bucket_basis", errors)
+    if "band_basis" in value:
+        _string(value.get("band_basis"), f"{path}.band_basis", errors)
     if decision not in DECISIONS:
         _add(errors, f"{path}.decision", f"expected one of {sorted(DECISIONS)}")
     _number_range(value.get("composite_score"), f"{path}.composite_score", errors, 0, 100, nullable=True)

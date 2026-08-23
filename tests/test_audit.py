@@ -270,9 +270,10 @@ def test_proxy_vs_missing_distinction(foundation):
     h_agi = _h(_run(), "AGI Greenpac")
     dq = h_agi["data_quality"]
     assert dq["valuation_stretch"] == "missing"
-    assert dq["position_sizing"] == "authoritative"
+    assert dq["position_sizing"] == "proxy"  # CR-009: unknown bucket uses disclosed fallback basis
     assert dq["tax_efficiency"] == "authoritative"
     h_sal = _h(_run(), "Salasar Techno Engg")
+    assert h_sal["data_quality"]["position_sizing"] == "authoritative"
     assert h_sal["data_quality"]["valuation_stretch"] == "proxy"
 
 
