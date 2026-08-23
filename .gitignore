@@ -7,3 +7,8 @@ build/
 frontend/node_modules/
 .venv/
 frontend/dist/
+# Real CR dry-run inputs - keep outside Git
+/xirr_report_*.csv
+/mystockholdings_*.csv
+/dhan holdings*.csv
+/cr005-inputs/
