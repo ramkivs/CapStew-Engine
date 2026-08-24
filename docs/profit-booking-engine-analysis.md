@@ -134,6 +134,8 @@ STT (0.1% each side) + brokerage + impact cost ≈ **0.3–0.5% round trip** for
 
 ### 2.15 The "opportunity cost" category needs a default hurdle to be computable now
 
+**CR-008 authority note:** This section is retained as historical analysis. The live engine does **not** operationalize D-14/default hurdles or watchlist scoring. Current Opportunity Cost remains one 0–100 D-09 category at 10%, with PEG proxy as the live source where fundamentals exist; D-14 / `hurdle_d14` remains signed/provisional unless separately authorized.
+
 §E requires a scored watchlist, which doesn't exist (gap E-1). Without it, the 10%-weight category is dead. Fix: use a **standing default hurdle** — post-tax expected return of the best available *passive* alternative (Nifty index fund ≈ 10–12% pre-tax long-term expectation, or a liquid/overnight fund ≈ 6.3–6.5% pre-tax as the "wait" rate). The category then computes immediately: *is this holding's forward expected return (from the scoring engine's implied fair value/MOS) above the default hurdle after tax and cost?* When a real watchlist score exists for a specific alternative, it replaces the default. This turns §E from "blocked" to "ready with a coarse proxy," consistent with the spec's own phased philosophy.
 
 ---
@@ -192,7 +194,7 @@ Legend — **Owner:** Ramki-policy = a decision, not data; Data = new export/sou
 | G-03 | D | Realized gains booked this FY (headroom) | Data | 🔴 | Sold-transactions export; until then, engine reports headroom = ₹1.25L "assumed unbooked" with a caveat |
 | G-04 | A | Own 5-yr PE/PB historical median | Data | 🟠 | Screener.in export, or **start archiving** and build own series; proxy = peer-relative premium until then |
 | G-05 | B | Quality/composite score at entry vs now (time series) | Data | 🔴 | **Start periodic archiving of the screener now** — irrecoverable otherwise |
-| G-06 | E | Watchlist scores for opportunity cost | Data | 🟠 | Default hurdle proxy (§2.15) until watchlist scoring exists |
+| G-06 | E | Watchlist scores for opportunity cost | Data | 🟠 | Historical proposal only; live CR-007 behavior uses PEG proxy, with D-14/default hurdles and watchlist scoring not operational unless separately authorized |
 | G-07 | F | 50D SMA, relative strength vs Nifty/sector | Data | 🟡 | Price-history pull per holding + index |
 | G-08 | B2 | Cross-engine agreement (Engine2/Filter/Arena) | Build | 🟡 | Feed their outputs; until then, engine reports "single-engine" confidence penalty |
 | G-09 | — | **Confidence score definition** | Build | 🔴 | **(new)** §8 |
@@ -228,7 +230,7 @@ These are the "don't leave implicit" items from §8.2 plus the parameters the sp
 | D-11 | Min meaningful position size | no trim that leaves < 0.5% allocation or < ₹5,000 value | Avoid dust positions |
 | D-12 | Participation cap per session | min(10% of 20d ADV, 25% of qty) per session | Staged exit otherwise |
 | D-13 | Transaction-cost assumption | 0.35% round trip liquid; 1.0% microcap | Config, revisable |
-| D-14 | Default opportunity-cost hurdle | Nifty index 11% pre-tax long-term; liquid fund 6.4% for "wait" | §2.15 |
+| D-14 | Default opportunity-cost hurdle | Nifty index 11% pre-tax long-term; liquid fund 6.4% for "wait" | Signed/provisional only; not a live scorer input under current CR-007/CR-008 authority |
 | D-15 | Review cadence | HOLD+high-conf +90d; HOLD+low-conf +30d; PARTIAL/FULL +7d (verify); Stage-1 fire +1d | §8.6 |
 
 ---

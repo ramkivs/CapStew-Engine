@@ -7,7 +7,7 @@ const CAT_LABELS: Record<string, string> = {
   valuation_stretch: 'Valuation stretch',
   quality_drift: 'Quality drift',
   tax_efficiency: 'Tax efficiency',
-  opportunity_cost: 'Opportunity cost',
+  opportunity_cost: 'Opportunity cost (PEG proxy)',
   technical_regime: 'Technical / regime',
 };
 
@@ -125,6 +125,8 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
             ))}
             <div className="note" style={{ marginTop: 10 }}>
               These are authoritative backend subscores. The frontend only renders the supplied values.
+              Opportunity Cost is currently the backend PEG proxy where fundamentals exist;
+              D-14 / hurdle_d14 and watchlist scoring are not live unless separately authorized.
             </div>
           </div>
 

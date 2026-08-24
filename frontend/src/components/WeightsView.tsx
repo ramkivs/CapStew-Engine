@@ -7,7 +7,7 @@ const WEIGHT_LABELS: Record<string, string> = {
   valuation_stretch: 'Valuation stretch',
   quality_drift: 'Fundamental / quality drift',
   tax_efficiency: 'Tax efficiency',
-  opportunity_cost: 'Opportunity cost',
+  opportunity_cost: 'Opportunity cost (PEG proxy)',
   technical_regime: 'Technical / regime overlay',
 };
 
@@ -66,6 +66,9 @@ export function WeightsView({ policy, previewActive, onWhatIf, onCommit }: {
         </div>
         <div className="note" style={{ marginTop: 10 }}>
           Dragging alone never persists — only <b>Commit policy</b> writes a new version.
+          Opportunity Cost remains one 0–100 D-09 category; the live source is PEG proxy
+          where fundamentals exist. D-14 / hurdle_d14 and watchlist scoring are not live
+          unless separately authorized.
         </div>
       </div>
 

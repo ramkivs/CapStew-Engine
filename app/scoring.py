@@ -177,7 +177,11 @@ def tax_efficiency(oldest_days_to_ltcg, any_ltcg_eligible):
 
 
 def opportunity_cost(f):
-    """0-100 proxy via PEG (default-hurdle stand-in until a watchlist exists)."""
+    """0-100 live Opportunity Cost proxy via PEG.
+
+    D-14/default-hurdle and watchlist scoring are not operational scorer inputs
+    unless separately authorized; preserve the existing PEG proxy behavior.
+    """
     if not f:
         return None
     peg = f.get("peg_ratio")
