@@ -421,7 +421,7 @@ function renderPolicy(){
                  valuation:['Valuation stretch','25%','#fb923c'],
                  quality:['Fundamental / quality drift','20%','#a78bfa'],
                  tax:['Tax efficiency','15%','#60a5fa'],
-                 opp:['Opportunity cost','10%','#fbbf24'],
+                 opp:['Opportunity cost (PEG proxy)','10%','#fbbf24'],
                  tech:['Technical / regime overlay','5%','#94a3b8'] };
   const sliders = Object.entries(cats).map(([k,meta])=>`
     <div class="cfg">
@@ -447,7 +447,8 @@ function renderPolicy(){
       <div class="cfg"><div class="lbl"><b>Min meaningful position</b><small>no dust positions</small></div><div></div><div class="val">0.5% / ₹5k</div></div>
       <div class="cfg"><div class="lbl"><b>Participation cap</b><small>trim ≤ per session</small></div><div></div><div class="val">10% ADV</div></div>
       <div class="cfg"><div class="lbl"><b>Transaction cost</b><small>liquid / microcap</small></div><div></div><div class="val">0.35% / 1.0%</div></div>
-      <div class="cfg"><div class="lbl"><b>Default hurdle (opp. cost)</b><small>Nifty / liquid fund</small></div><div></div><div class="val">11% / 6.4%</div></div>
+      <div class="cfg"><div class="lbl"><b>D-14 hurdle</b><small>signed / provisional only</small></div><div></div><div class="val">not live</div></div>
+      <div class="note" style="margin-top:10px">Opportunity Cost remains one 0–100 D-09 category at 10%; the live source is PEG proxy where fundamentals exist. D-14 / <span class="kbd">hurdle_d14</span> and watchlist scoring are not live unless separately authorized.</div>
       <div class="note" style="margin-top:10px">All values versioned in <span class="kbd">policy.yaml</span> — the engine never hardcodes them.</div>
     </div>
   </div>`;
@@ -477,7 +478,7 @@ function renderTax(){
 function openDetail(id){
   sel = HOLDINGS.find(h=>h.id===id);
   const h = sel, d = h.decision, m = DEC[d], s = h.score;
-  const catNames = {sizing:'Position sizing', valuation:'Valuation stretch', quality:'Quality drift', tax:'Tax efficiency', opp:'Opportunity cost', tech:'Technical/regime'};
+  const catNames = {sizing:'Position sizing', valuation:'Valuation stretch', quality:'Quality drift', tax:'Tax efficiency', opp:'Opportunity cost (PEG proxy)', tech:'Technical/regime'};
   const catCols = {sizing:'#34d399', valuation:'#fb923c', quality:'#a78bfa', tax:'#60a5fa', opp:'#fbbf24', tech:'#94a3b8'};
   const subrows = Object.entries(h.subs).map(([k,v])=>`
     <div class="subrow"><span>${catNames[k]} <span class="w">${W[k]}%</span></span>${catbar(v,catCols[k])}<span class="num" style="font-family:var(--mono)">${v}</span></div>`).join('');

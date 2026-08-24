@@ -508,9 +508,14 @@ Badge recipe: `color: <color>; background: <color>@10%; border: 1px solid <color
 │  Tax efficiency   ▓▓▓ 15%       │  min position 0.5%/₹5k     │
 │  Opportunity cost ▓▓ 10%        │  participation 10% ADV     │
 │  Technical        ▓ 5%          │  txn cost 0.35%/1.0%       │
-│  TOTAL ▓▓▓▓▓▓▓▓▓ 100%  ✓        │  hurdle 11%/6.4%           │
+│  TOTAL ▓▓▓▓▓▓▓▓▓ 100%  ✓        │  OC source: PEG proxy      │
 └─────────────────────────────────┴────────────────────────────┘
 ```
+
+**CR-008 wording note:** Opportunity Cost remains one 0–100 D-09 category at
+10%. The live source is the PEG proxy where fundamentals exist; D-14 /
+`hurdle_d14` and watchlist scoring are not live, and D-14 remains
+signed/provisional until separately authorized.
 
 **Interactions:**
 - Each slider range 0–50. The running total bar is green at exactly 100%, red otherwise, with a note: *"Composite normalised to the running total (sum ≠ 100)."*

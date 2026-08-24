@@ -180,6 +180,9 @@ run N vs N-1 without rewriting either.
 **Four-state data quality** (proxy ≠ missing ≠ stale ≠ authoritative) is exposed per
 holding as `data_quality` and drives the confidence penalties; `position_sizing` and
 `tax_efficiency` are authoritative, the other four are v1 proxies until their sources land.
+Opportunity Cost remains one 0–100 D-09 category at 10%; the live source is the
+PEG proxy where fundamentals exist. D-14 / `hurdle_d14` and watchlist scoring are
+not live; D-14 remains signed/provisional until separately authorized.
 **Provenance** (engine/normalization/calculation/policy versions + per-file `as_of`) is
 carried on every decision payload.
 
