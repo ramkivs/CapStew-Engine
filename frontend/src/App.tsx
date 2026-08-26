@@ -11,6 +11,8 @@ import { HoldingDetail } from './components/HoldingDetail';
 import { TaxView } from './components/TaxView';
 import { WeightsView } from './components/WeightsView';
 import { HistoryView } from './components/HistoryView';
+import { ActivityLogPanel } from './components/ActivityLogPanel';
+import { log } from './activityLog';
 
 export default function App() {
   const [view, setView] = useState<ViewId>('inputs');
@@ -39,16 +41,22 @@ export default function App() {
 
   async function handleRunSample() {
     setRunning(true); setError(null);
+    log('info', 'run requested — bundled demo fixtures');
     try {
       const p = await engine.runSample();
       setPayload(p); setPreview(null); setTaxData(p.tax_year ?? null);
       setView('decisions'); refreshRuns();
-    } catch (e) { setError((e as Error).message); }
+      log('ok', `run complete — run_id ${p.run_id} · ${p.holdings.length} holdings · as_of ${p.as_of}`);
+    } catch (e) {
+      setError((e as Error).message);
+      log('fail', `run failed — ${(e as Error).message}`);
+    }
     finally { setRunning(false); }
   }
 
   async function handleRunFiles(portfolio: File, screener: File, ledger: File, sold: File | null) {
     setRunning(true); setError(null);
+    log('info', `run requested — ${portfolio.name} + ${screener.name} + ${ledger.name}${sold ? ` + ${sold.name}` : ''} → POST /api/v1/run`);
     try {
       const form = new FormData();
       form.append('portfolio', portfolio);
@@ -58,7 +66,11 @@ export default function App() {
       const p = await engine.run(form);
       setPayload(p); setPreview(null); setTaxData(p.tax_year ?? null);
       setView('decisions'); refreshRuns();
-    } catch (e) { setError((e as Error).message); }
+      log('ok', `run complete — run_id ${p.run_id} · ${p.holdings.length} holdings · as_of ${p.as_of} · content_hash ${p.content_hash.slice(0, 12)}…`);
+    } catch (e) {
+      setError((e as Error).message);
+      log('fail', `run failed — ${(e as Error).message}`);
+    }
     finally { setRunning(false); }
   }
 
@@ -114,6 +126,8 @@ export default function App() {
         {view === 'history' ? (
           <HistoryView runs={runs} diff={diff} onDiff={handleDiff} onRefresh={refreshRuns} />
         ) : null}
+
+        <ActivityLogPanel />
       </main>
 
       <HoldingDetail holding={selected} onClose={() => setSelected(null)} />

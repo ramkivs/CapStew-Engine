@@ -1,5 +1,7 @@
 import type { DecisionPayload, Holding } from '../types';
 import { Badge, Banner, Bar, Stat, TagChip, inr, pct, num } from './ui';
+import { exportDecisionsCsv, exportDecisionsJson } from '../utils/exportDecisions';
+import { log } from '../activityLog';
 
 const CAT_COLORS: Record<string, string> = {
   position_sizing: '#34d399',
@@ -34,6 +36,27 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
           </div>
         </div>
       ) : null}
+
+      <div className="card" style={{ marginBottom: 14 }}>
+        <h3>Export decisions <span className="tag">client-side download · current run · advisory</span></h3>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button className="btn" onClick={() => {
+            const name = exportDecisionsJson(payload);
+            log('ok', `exported ${name} — full backend payload, run ${payload.run_id.slice(0, 16)}…`);
+          }}>
+            ⭳ Decisions JSON
+          </button>
+          <button className="btn" onClick={() => {
+            const name = exportDecisionsCsv(payload);
+            log('ok', `exported ${name} — per-holding decision table, run ${payload.run_id.slice(0, 16)}…`);
+          }}>
+            ⭳ Decisions CSV
+          </button>
+          <span className="note">
+            Serializes the backend payload exactly as received — no browser recomputation (ADR-1a). Exports the authoritative run only, never a preview.
+          </span>
+        </div>
+      </div>
 
       {p.warnings.length > 0 ? (
         <Banner kind="warn">

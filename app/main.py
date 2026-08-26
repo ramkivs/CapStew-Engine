@@ -15,6 +15,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from . import config
+from .ingest import IngestError, parse_ledger, parse_portfolio, parse_screener, parse_sold
 from .pipeline import decide_on_foundation, run_foundation
 from .schema import DecisionPayloadValidationError, validate_decision_payload
 from .store import RunStore
@@ -52,6 +53,49 @@ def _save(upload: UploadFile, dirpath: Path) -> Path:
     return dest
 
 
+def _api_error(status: int, code: str, message: str, *, stage: str | None = None,
+               file: str | None = None):
+    """Structured error envelope (additive diagnostics channel).
+
+    FastAPI serializes `detail` verbatim, so clients receive
+    {"detail": {"error": {code, severity, stage?, file?, message}}}.
+    """
+    err = {"code": code, "severity": "blocking", "message": message}
+    if stage:
+        err["stage"] = stage
+    if file:
+        err["file"] = file
+    raise HTTPException(status_code=status, detail={"error": err})
+
+
+def _precheck(slot: str, upload: UploadFile, path: Path, parse_fn) -> None:
+    """Attribute ingest failures to the right uploaded file/slot.
+
+    Runs only the tolerant CSV parser for that slot — no engine execution, no
+    methodology involvement. The engine re-parses everything itself downstream;
+    this duplicate pass exists purely so the user sees 'portfolio.csv line 42 …'
+    instead of an opaque 500.
+    """
+    try:
+        parse_fn(path)
+    except IngestError as exc:
+        _api_error(400, "IMPORT_ERROR", str(exc), stage=f"parse:{slot}", file=upload.filename)
+    except Exception as exc:
+        _api_error(400, "IMPORT_ERROR", f"{type(exc).__name__}: {exc}",
+                   stage=f"parse:{slot}", file=upload.filename)
+
+
+def _engine_error(stage: str, exc: Exception):
+    """Map engine-side exceptions to structured responses without hiding them."""
+    if isinstance(exc, HTTPException):
+        raise exc
+    if isinstance(exc, IngestError):
+        _api_error(400, "IMPORT_ERROR", str(exc), stage=stage)
+    if isinstance(exc, (ValueError, TypeError, AttributeError, KeyError)):
+        _api_error(400, "IMPORT_ERROR", f"{type(exc).__name__}: {exc}", stage=stage)
+    _api_error(500, "ENGINE_ERROR", f"{type(exc).__name__}: {exc}", stage=stage)
+
+
 @app.get("/api/v1/health")
 def health():
     return {"status": "ok", "engine_version": config.ENGINE_VERSION, "phase": config.PHASE}
@@ -72,8 +116,13 @@ def reconcile_endpoint(
         tmp = Path(tmp)
         p = _save(portfolio, tmp)
         l = _save(ledger, tmp)
+        _precheck("portfolio", portfolio, p, parse_portfolio)
+        _precheck("ledger", ledger, l, parse_ledger)
         tol = Decimal(str(get_recon_tolerance(load_policy())))
-        return reconcile(parse_portfolio(p), parse_ledger(l), tol)
+        try:
+            return reconcile(parse_portfolio(p), parse_ledger(l), tol)
+        except Exception as exc:
+            _engine_error("reconcile", exc)
 
 
 @app.post("/api/v1/ingest")
@@ -87,7 +136,13 @@ def ingest_endpoint(
         p = _save(portfolio, tmp)
         s = _save(screener, tmp)
         l = _save(ledger, tmp)
-        payload = run_foundation(p, s, l)
+        _precheck("portfolio", portfolio, p, parse_portfolio)
+        _precheck("screener", screener, s, parse_screener)
+        _precheck("ledger", ledger, l, parse_ledger)
+        try:
+            payload = run_foundation(p, s, l)
+        except Exception as exc:
+            _engine_error("ingest", exc)
         _LAST_FOUNDATION.clear()
         _LAST_FOUNDATION.update(payload)
         return payload
@@ -120,12 +175,16 @@ def run_endpoint(
             p = _save(portfolio, tmp)
             s = _save(screener, tmp)
             l = _save(ledger, tmp)
+            _precheck("portfolio", portfolio, p, parse_portfolio)
+            _precheck("screener", screener, s, parse_screener)
+            _precheck("ledger", ledger, l, parse_ledger)
             foundation = run_foundation(p, s, l)
             store = RunStore()
             history = store.previous_holdings()          # persisted prior run, not memory
             payload = decide_on_foundation(foundation, apply_hysteresis=True, history=history)
             if sold is not None:
                 sp = _save(sold, tmp)
+                _precheck("sold", sold, sp, parse_sold)
                 tax = compute_tax_year(foundation, sp)
                 payload["tax_year"] = tax
                 payload["portfolio_summary"]["tax"].update({
@@ -143,6 +202,8 @@ def run_endpoint(
             return payload
     except DecisionPayloadValidationError as exc:
         _payload_validation_failure(exc)
+    except Exception as exc:
+        _engine_error("run", exc)
     finally:
         if store is not None:
             store.close()

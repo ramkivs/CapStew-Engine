@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Banner } from './ui';
+import { log } from '../activityLog';
 
 const STEPS = [
   'Parse 3 files & normalise dates (DD-MM vs ISO)',
@@ -24,6 +25,11 @@ export function InputsView({ running, onRunSample, onRunFiles }: {
   const [step, setStep] = useState(-1);
 
   const stepTimer = useRef<number | null>(null);
+
+  const pick = (slot: string, set: (f: File) => void) => (f: File) => {
+    set(f);
+    log('info', `file selected — ${slot}: ${f.name} (${(f.size / 1024).toFixed(1)} KB)`);
+  };
 
   function runFiles() {
     if (!portfolio || !screener || !ledger) {
@@ -55,11 +61,11 @@ export function InputsView({ running, onRunSample, onRunFiles }: {
     <div>
       <div className="grid cols-3" style={{ marginBottom: 14 }}>
         <FileDrop label="1 · Portfolio holdings" sub="Instrument, Qty, Avg Buy, Invested, Value, Alloc %, XIRR, Days, Dates"
-          file={portfolio} onFile={setPortfolio} />
+          file={portfolio} onFile={pick('1 · portfolio holdings', setPortfolio)} />
         <FileDrop label="2 · Fundamentals / valuation screener" sub="PE/PB + premiums, PEG, ROE/ROCE, growth, D/E, pledge, DII/FII, 200D SMA"
-          file={screener} onFile={setScreener} />
+          file={screener} onFile={pick('2 · valuation screener', setScreener)} />
         <FileDrop label="3 · Raw trade ledger (per fill)" sub="Instrument, Qty, Buy Price, LTP, P&L, Invested, Trade Date"
-          file={ledger} onFile={setLedger} />
+          file={ledger} onFile={pick('3 · trade ledger', setLedger)} />
       </div>
 
       <div className="grid cols-2">
@@ -87,7 +93,7 @@ export function InputsView({ running, onRunSample, onRunFiles }: {
         <div className="card">
           <h3>Sold transactions (optional) <span className="tag">closes the realised-gains gap</span></h3>
           <FileDrop label="Sold ledger" sub="Instrument, Qty, Sell Price, Sell Date — enables the real tax-year summary"
-            file={sold} onFile={setSold} />
+            file={sold} onFile={pick('sold ledger (optional)', setSold)} />
         </div>
       </div>
 

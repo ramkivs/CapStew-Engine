@@ -8,30 +8,38 @@ LTCG eligibility: a listed-equity lot is long-term when held **more than**
 """
 from decimal import Decimal
 
+from .ingest import IngestError
 from .normalize import parse_date
 
 
 def build_lots(ledger_rows, as_of, ltcg_period_days=365, inferred_notes=None):
     lots = []
     for seq, r in enumerate(ledger_rows):
-        trade_date = parse_date(r["trade_date"], inferred_notes=inferred_notes)
-        days_held = (as_of - trade_date).days
-        qty = r["qty"]
-        buy = r["buy_price"]
-        ltp = r["ltp"]
-        lots.append({
-            "_seq": seq,
-            "instrument": r["instrument"],
-            "trade_date": trade_date,
-            "qty": qty,
-            "buy_price": buy,
-            "ltp": ltp,
-            "invested": qty * buy,
-            "value": qty * ltp,
-            "pnl": qty * (ltp - buy),
-            "days_held": days_held,
-            "days_to_ltcg": max(0, ltcg_period_days - days_held),
-        })
+        try:
+            trade_date = parse_date(r["trade_date"], inferred_notes=inferred_notes)
+            days_held = (as_of - trade_date).days
+            qty = r["qty"]
+            buy = r["buy_price"]
+            ltp = r["ltp"]
+            lots.append({
+                "_seq": seq,
+                "instrument": r["instrument"],
+                "trade_date": trade_date,
+                "qty": qty,
+                "buy_price": buy,
+                "ltp": ltp,
+                "invested": qty * buy,
+                "value": qty * ltp,
+                "pnl": qty * (ltp - buy),
+                "days_held": days_held,
+                "days_to_ltcg": max(0, ltcg_period_days - days_held),
+            })
+        except IngestError:
+            raise
+        except (ValueError, TypeError) as exc:
+            raise IngestError(
+                f"ledger row {seq + 1} ({r.get('instrument') or 'unnamed'}): {exc}"
+            ) from exc
 
     # Canonical order (determinism): instrument, then trade_date asc, buy_price asc,
     # then original row order. lot_id is PER-INSTRUMENT — a tax lot belongs to one
@@ -72,6 +80,14 @@ def derive_positions(portfolio_rows, lots, tickers, screener_by_ticker, policy):
         return "micro"
 
     positions = []
+    for i, pre in enumerate(portfolio_rows):
+        missing = [k for k in ("avg_buy_price", "invested", "current_value") if pre.get(k) is None]
+        if missing:
+            raise IngestError(
+                f"portfolio row {i + 1} ({pre.get('instrument') or 'unnamed'}): missing "
+                f"{', '.join(missing)} — broker summary/TOTAL rows and column mismatches "
+                "are not importable; remove them and keep one data row per holding"
+            )
     for p in portfolio_rows:
         name = p["instrument"]
         name_lots = lots_by_name.get(name, [])
