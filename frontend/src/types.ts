@@ -68,24 +68,27 @@ export interface Holding {
   composite_score: number | null;
   confidence: number | null;
   confidence_breakdown: Record<string, number> | null;
-  subscores: SubScores;
+  // CR-005: valid NO-DECISION holdings (G0-blocked) null the Stage 2 surfaces and
+  // OMIT the optional per-holding analysis fields entirely. `reason_tree` remains
+  // present on every backend decision state. Render all states null/undefined-safe.
+  subscores: SubScores | null;
   stage1: Stage1;
   evidence: Evidence | null;
   primary_drivers: string[];
   watch_flags: string[];
   behavioral_flags: string[];
-  behavioral: { flag: string; requires_reunderwrite: boolean; blocks_adds: boolean };
+  behavioral?: { flag: string; requires_reunderwrite: boolean; blocks_adds: boolean };
   trim: Trim | null;
   tax_status: {
     mixed_ltcg: boolean;
     oldest_lot_days_to_ltcg: number | null;
     ltcg_eligible_lots: number;
   } | null;
-  data_completeness: Record<string, boolean>;
-  data_quality: Record<string, string>;
-  lots: Lot[];
-  reason_tree: { decision_path: string; stage1: Record<string, unknown>; stage2: Record<string, unknown> };
-  why_now: { primary_trigger: string; contributors: { label: string; value: number; weight: number }[] };
+  data_completeness?: Record<string, boolean>;
+  data_quality?: Record<string, string>;
+  lots?: Lot[];
+  reason_tree: { decision_path: string; stage1?: Record<string, unknown>; stage2?: Record<string, unknown> };
+  why_now: { primary_trigger: string; contributors?: { label: string; value: number; weight: number }[] };
   previous_run: { decision: string; composite_score: number | null; as_of: string } | null;
   next_review_date: string | null;
 }

@@ -140,8 +140,8 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
                   return (
                     <tr key={h.instrument} className="row" onClick={() => onSelect(h)}>
                       <td className="tick">{h.ticker ?? h.instrument}
-                        {h.data_completeness.position_sizing === false ? ' · partial' : ''}
-                        {h.behavioral.blocks_adds ? ' ' : ''}
+                        {h.data_completeness?.position_sizing === false ? ' · partial' : ''}
+                        {h.behavioral?.blocks_adds ? ' ' : ''}
                       </td>
                       <td className="muted" style={{ fontFamily: 'system-ui' }}>{h.bucket ?? '—'}</td>
                       <td className="num">{pct(h.alloc_pct)}</td>
@@ -308,14 +308,14 @@ function qualityCaveat(h: Holding | undefined): string {
     parts.push('evidence unavailable');
   }
 
-  const dataQualityCaveats = Object.entries(h.data_quality)
+  const dataQualityCaveats = Object.entries(h.data_quality ?? {})
     .filter(([, v]) => !['actual', 'complete', 'ok', 'available'].includes(String(v).toLowerCase()))
     .map(([k, v]) => `${k.replace(/_/g, ' ')}=${v}`);
   if (dataQualityCaveats.length > 0) {
     parts.push(`data quality ${dataQualityCaveats.slice(0, 3).join(', ')}`);
   }
 
-  const incomplete = Object.entries(h.data_completeness)
+  const incomplete = Object.entries(h.data_completeness ?? {})
     .filter(([, ok]) => ok === false)
     .map(([k]) => k.replace(/_/g, ' '));
   if (incomplete.length > 0) {

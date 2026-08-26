@@ -15,12 +15,16 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
   if (!holding) return null;
   const h = holding;
   const m = meta(h.decision);
+  // CR-005: valid NO-DECISION holdings (G0-blocked) carry subscores: null and omit
+  // the optional analysis fields — render every backend state without dereferencing.
   const weights = h.subscores;
   const gate = gateMeta(h);
   const confidenceBreakdown = Object.entries(h.confidence_breakdown ?? {});
-  const incompleteInputs = Object.entries(h.data_completeness)
+  const incompleteInputs = Object.entries(h.data_completeness ?? {})
     .filter(([, ok]) => ok === false)
     .map(([k]) => k.replace(/_/g, ' '));
+  const contributors = h.why_now?.contributors ?? [];
+  const lots = h.lots ?? [];
 
   return (
     <>
@@ -116,13 +120,21 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
 
           <div className="card" style={{ marginTop: 14 }}>
             <h3>Composite score contributors <span className="tag">backend subscore display</span></h3>
-            {Object.entries(CAT_LABELS).map(([k, label]) => (
-              <div key={k} className="subrow" style={{ marginTop: 9 }}>
-                <span>{label}</span>
-                <Bar value={weights[k as keyof typeof weights] ?? 0} color={CAT_COLORS[k]} />
-                <span className="num" style={{ fontFamily: 'var(--mono)' }}>{num(weights[k as keyof typeof weights])}</span>
+            {weights ? (
+              Object.entries(CAT_LABELS).map(([k, label]) => (
+                <div key={k} className="subrow" style={{ marginTop: 9 }}>
+                  <span>{label}</span>
+                  <Bar value={weights[k as keyof typeof weights] ?? 0} color={CAT_COLORS[k]} />
+                  <span className="num" style={{ fontFamily: 'var(--mono)' }}>{num(weights[k as keyof typeof weights])}</span>
+                </div>
+              ))
+            ) : (
+              <div className="note">
+                No Stage 2 subscores were supplied for this holding
+                {h.decision === 'NO-DECISION' ? ' (G0 reconciliation blocked — no decision on untrusted data)' : ''}.
+                The final decision, gate state, and reason path above remain the authoritative backend output.
               </div>
-            ))}
+            )}
             <div className="note" style={{ marginTop: 10 }}>
               These are authoritative backend subscores. The frontend only renders the supplied values.
               Opportunity Cost is currently the backend PEG proxy where fundamentals exist;
@@ -135,9 +147,9 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
             <div className="note" style={{ marginBottom: 8 }}>
               Primary trigger: <b style={{ color: 'var(--text)' }}>{h.why_now?.primary_trigger ?? '—'}</b>
             </div>
-            {h.why_now?.contributors?.length ? (
+            {contributors.length ? (
               <div className="grid cols-3">
-                {h.why_now.contributors.map((c) => (
+                {contributors.map((c) => (
                   <div key={c.label} className="stat">
                     <div className="k">{c.label}</div>
                     <div className="v" style={{ fontSize: 16 }}>{num(c.value, 1)}</div>
@@ -156,7 +168,7 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
                 ? ` · missing critical: ${h.evidence.critical_categories_missing.join(', ')}` : ' · no critical missing categories reported'}
             </div>
             <div className="note" style={{ marginTop: 6 }}>
-              data quality: {Object.entries(h.data_quality).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ') || '—'}
+              data quality: {Object.entries(h.data_quality ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ') || '—'}
             </div>
             <div className="note" style={{ marginTop: 6 }}>
               completeness: {incompleteInputs.length ? `partial ${incompleteInputs.join(', ')}` : 'all reported categories complete'}
@@ -182,7 +194,7 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
             </div>
           ) : null}
 
-          {h.behavioral.blocks_adds ? (
+          {h.behavioral?.blocks_adds ? (
             <div className="card" style={{ marginTop: 14 }}>
               <h3>Behavioral guardrail</h3>
               <ul className="drivers">
@@ -217,6 +229,13 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
 
           <div className="card" style={{ marginTop: 14 }}>
             <h3>FIFO tax lots <span className="tag">per-lot · oldest-first</span></h3>
+            {h.lots == null ? (
+              <div className="note">
+                No per-lot data was supplied for this holding. Per CR-005 this is a valid backend
+                decision state{h.decision === 'NO-DECISION' ? ' (G0 reconciliation blocked)' : ''} — the
+                decision row above remains authoritative; nothing is recomputed in the browser.
+              </div>
+            ) : (
             <div style={{ overflowX: 'auto' }}>
               <table>
                 <thead>
@@ -227,7 +246,7 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
                   </tr>
                 </thead>
                 <tbody>
-                  {h.lots.map((l) => (
+                  {lots.map((l) => (
                     <tr key={l.lot_id}>
                       <td className="tick">#{l.lot_id}</td>
                       <td>{l.trade_date}</td>
@@ -246,6 +265,7 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
                 </tbody>
               </table>
             </div>
+            )}
             <div className="note" style={{ marginTop: 8 }}>
               Indian CGT is per-lot FIFO — a trim sells the <b>oldest unsold lots first</b>. This section renders backend lot data only.
             </div>
@@ -254,10 +274,10 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
           <div className="card" style={{ marginTop: 14 }}>
             <h3>Provenance</h3>
             <div className="note" style={{ fontFamily: 'var(--mono)' }}>
-              {JSON.stringify(h.reason_tree.stage1)} · {h.reason_tree.decision_path}
+              {h.reason_tree.stage1 ? JSON.stringify(h.reason_tree.stage1) : 'no stage-1 record'} · {h.reason_tree.decision_path}
             </div>
             <div className="note" style={{ marginTop: 4 }}>
-              data quality: {Object.entries(h.data_quality).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ')}
+              data quality: {Object.entries(h.data_quality ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ') || '—'}
             </div>
           </div>
         </div>

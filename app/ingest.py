@@ -1,12 +1,20 @@
-"""CSV parsers for the three exports (Phase 1).
+"""Delimited-value parsers for the three exports (Phase 1).
 
 Each parser normalizes column names to a canonical lowercased alphanumeric key
 so it tolerates the exports' quirks: "Qty." (trailing dot), "Curr value"
 (lowercase v), "Allocation %", "Holding Period (Days)", etc.
+
+CR-005: both comma- and tab-delimited exports are accepted. The delimiter is
+detected deterministically from the header row (TAB only when tabs are the sole
+separator present); a header mixing TAB and comma is ambiguous and rejected
+with a structured IMPORT_ERROR instead of being silently reinterpreted. Data
+rows whose column count differs from the header are likewise rejected — the
+parsers never guess at a column layout.
 """
 import csv
 import re
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 
 from .normalize import parse_date
 
@@ -38,13 +46,82 @@ def _int(value):
     return None if d is None else int(d)
 
 
+# Sentinels for csv.DictReader row-width validation (CR-005). Using unique
+# objects (not None) so a genuinely empty cell ("") is never confused with a
+# short row, and extra cells can never collide with a real header name.
+_MISSING_CELL = object()  # restval: row had fewer columns than the header
+_EXTRA_CELLS = object()   # restkey: row had more columns than the header
+
+
+def _sniff_delimiter(header_line: str, source: str) -> str:
+    """Pick the delimiter deterministically from the header row.
+
+    Rules (CR-005 §3):
+    * TAB        — header contains TAB and no comma;
+    * comma      — header contains comma and no TAB, or neither separator
+                   (single-column file: parses, downstream column checks apply);
+    * ambiguous  — header contains BOTH — rejected. Mixing separators in the
+                   header means no deterministic column layout exists; guessing
+                   would silently reinterpret the data.
+    """
+    has_tab = "\t" in header_line
+    has_comma = "," in header_line
+    if has_tab and has_comma:
+        raise IngestError(
+            f"{source}: ambiguous delimiter — the header row contains both TAB and comma "
+            "characters, so no deterministic column layout exists. Re-export the file with a "
+            "single consistent separator (tab or comma)."
+        )
+    return "\t" if has_tab else ","
+
+
 def _read(path):
+    source = Path(path).name
     with open(path, newline="", encoding="utf-8-sig") as fh:
-        reader = csv.DictReader(fh)
-        if reader.fieldnames is None:
+        header_line = None
+        for line in fh:
+            if line.strip():
+                header_line = line
+                break
+        if header_line is None:
+            return []
+        delimiter = _sniff_delimiter(header_line, source)
+
+    with open(path, newline="", encoding="utf-8-sig") as fh:
+        # Skip leading blank lines so the row DictReader treats as the header is
+        # exactly the row the delimiter was sniffed from.
+        pos = fh.tell()
+        line = fh.readline()
+        while line and not line.strip():
+            pos = fh.tell()
+            line = fh.readline()
+        fh.seek(pos)
+
+        reader = csv.DictReader(
+            fh, delimiter=delimiter, restkey=_EXTRA_CELLS, restval=_MISSING_CELL,
+        )
+        if not reader.fieldnames:
             return []
         norm = {orig: _norm_key(orig) for orig in reader.fieldnames}
-        return [{norm[k]: v for k, v in row.items() if k in norm} for row in reader]
+        width = len(reader.fieldnames)
+        rows = []
+        for lineno, row in enumerate(reader, start=2):
+            if _EXTRA_CELLS in row:
+                found = width + len(row[_EXTRA_CELLS])
+                raise IngestError(
+                    f"{source} line {lineno}: expected {width} column(s), found {found} — "
+                    "the data row contains an extra separator; fix the export rather than "
+                    "letting the importer guess."
+                )
+            missing = sum(1 for v in row.values() if v is _MISSING_CELL)
+            if missing:
+                raise IngestError(
+                    f"{source} line {lineno}: expected {width} column(s), found {width - missing} — "
+                    "the data row is missing separator(s); fix the export rather than letting "
+                    "the importer guess."
+                )
+            rows.append({norm[k]: v for k, v in row.items() if k in norm})
+        return rows
 
 
 def parse_ledger(path):
