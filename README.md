@@ -4,8 +4,8 @@ Portfolio discipline · valuation · tax · risk.
 
 - **Phase 1 (done):** data foundation — parsers → normalization → reconciliation (G0) → per-lot FIFO → canonical payload, with the determinism hash. No decision logic.
 - **Phase 2 (done):** the decision engine — G0–G4 gates → Stage-2 scorer → confidence → hysteresis → TRIM-S/TRIM-V → `reason_tree`/`why_now` → DecisionPayload.
-- **Phase 2 audit: PASSED — no known open audit findings** (table below; 111 → 126 backend tests).
-- **Phase 3 (this build):** tax-year subsystem (S.74 set-off, exemption, carry-forward, FIFO sell matching, tax-aware sequencing) + run history/`diff` + provenance completion. **126 backend tests green; frontend TypeScript build clean.**
+- **Phase 2 audit: PASSED — no known open audit findings** (table below; 111 → 126 backend tests — build-point count, superseded by the epoch table below).
+- **Phase 3 (this build):** tax-year subsystem (S.74 set-off, exemption, carry-forward, FIFO sell matching, tax-aware sequencing) + run history/`diff` + provenance completion. **126 backend tests green at the Phase-3 build point; frontend TypeScript build clean — counts since superseded; see the epoch table below.**
 
 ## Status
 
@@ -19,6 +19,18 @@ Portfolio discipline · valuation · tax · risk.
 | React/UI integration | ✅ COMPLETE (gates UI-1…UI-6) |
 | UI Product Acceptance (UAT-01…06) | ✅ PASSED |
 | Release gate (R-01…R-10) | ✅ PASSED — tagged `v1.0.0` (`RELEASE-v1.md` + `MANIFEST.sha256`) |
+
+## Epochs, test counts & release records (CR-020, 2026-08-27)
+
+| Epoch | Ref | Status | Backend tests |
+|---|---|---|---|
+| v1.0.0 (**CERTIFIED** — the only certified epoch) | annotated tag → commit `86677380` | R-01…R-10 10/10 PASS; `RELEASE-v1.md` + `MANIFEST.sha256` (frozen) | 126 (at certification) |
+| v1.1.0 | lightweight tag `638890bb` + hosted GitHub Release | **RELEASE-DOCUMENTED MILESTONE — not a certified release** (E2E-013-R C1 / E2E-017-PD R1-B); no in-repo release record exists for this epoch | 176 (hosted-Release claim; not re-audited in-repo) |
+| main-current | `ffdf9cba2c7f5e479765c57f314f2cb7823d8138` | TESTED (CR-005/CR-019/CR-008/CR-012A/CR-012B merged) | 450 collected |
+| session branch | `arena/01a033db-capstew-engine` @ `e473417b75d0a60a9be7376803d4d77a867e5858` | TESTED; CR-006 REAL-DATA VERIFIED (authority-executed acceptance) | 497 collected |
+
+- `MANIFEST.sha256` pins the **v1.0.0 tree only** and `RELEASE-v1.md` records the **v1.0.0 release only**. Both are frozen v1.0.0 records, unchanged by design — they are not current-tree manifests.
+- Version constants (`ENGINE_VERSION`, `NORMALIZATION_VERSION`, `CALCULATION_VERSION`, `policy_version`) are currently static across epochs, so payload provenance discriminates material builds only via git SHA + test ledger until the **VP-1** rule (`docs/version-provenance-rule-vp1.md`) applies to future engine-mutating CRs.
 
 ## Pipeline
 
@@ -53,10 +65,12 @@ app/
   trim.py        constrained trim sizing (TRIM-S / TRIM-V, FIFO prefix)
   behavior.py    averaging-into-losses guardrail
   decision.py    decide_instrument() / decide_all() → DecisionPayload
-  main.py        FastAPI endpoints
+  main.py        FastAPI endpoints (14: health · reconcile · ingest · lots · run · run-sample · what-if · decisions · holdings · runs · run diff · tax-tracker · policy GET/PUT)
+  schema.py      CR-001 runtime DecisionPayload validator
+  symbols.py     CR-006 canonical instrument identity (deterministic name-key join; no fuzzy/ticker heuristics)
 policy/policy.yaml        D-01…D-15 (signed in Freeze §14; operational serialization only)
 fixtures/                 generated CSV fixtures (golden trilogy embedded) + sold_sample.csv
-tests/                    126 backend tests (unit · gates · scoring · confidence · trim · hysteresis · decision · audit · policy · tax · diff · API)
+tests/                    backend suites — 497 collected at session epoch `e473417` (unit · gates · scoring · confidence · trim · hysteresis · decision · audit · policy · tax · diff · API · schema · determinism · import_errors · golden fixtures · CR-005/006/007/009/012A/012B/018/019); 126 at the Phase-3 build point
 scripts/hash_engine.py    cross-process determinism probe
 ```
 
@@ -65,7 +79,7 @@ scripts/hash_engine.py    cross-process determinism probe
 ```bash
 pip install -r requirements.txt
 python fixtures/generate_fixtures.py fixtures   # regenerate fixtures
-pytest -q                                       # 126 backend tests passed
+pytest -q                                       # suite size is epoch-stamped (see epochs table): 497 collected at e473417
 cd frontend && npx tsc --noEmit                 # frontend type-check clean
 uvicorn app.main:app --host 0.0.0.0 --port 8000 # API
 ```
@@ -126,8 +140,11 @@ frontend/src/
   api/            client.ts · engine.ts · tax.ts · history.ts · policy.ts   ← UI-1 gate
   types.ts        DecisionPayload / Holding / TaxYear / Policy / RunDiff types
   components/     Header · InputsView · DecisionsView · HoldingDetail ·
-                  WeightsView · TaxView · HistoryView · ui primitives
-  App.tsx         tab shell + state
+                  WeightsView · TaxView · HistoryView · ActivityLogPanel · ui primitives
+  utils/          exportDecisions.ts (client-side export of the authoritative payload)
+  App.tsx         tab shell + state (+ sold-ledger upload wiring)
+                  (ActivityLogPanel / exportDecisions / HoldingDetail are post-v1.0.0
+                  additions — IMPLEMENTED, pending E2E-018 observed-rendered verification)
 ```
 
 **UI gates delivered in order:**

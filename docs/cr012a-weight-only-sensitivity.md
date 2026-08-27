@@ -1,6 +1,8 @@
 # CR-012A — Weight-Only Sensitivity Characterization
 
-**Status:** FRESH IMPLEMENTATION CANDIDATE (test/doc-only)
+**Status:** MERGED / CURRENT (test/doc-only) — merged to `main` via PR #3 (history: `eb5cd7a`, `ab429fb`).
+
+> **CR-020 note (2026-08-27):** the original status line read "FRESH IMPLEMENTATION CANDIDATE". That wording, and the Baseline/Authorization lines below, are retained verbatim as the historical record of how this candidate was authorized; only this status line is restated.
 **Baseline:** `origin/main` @ `dd84555eed6275a5895a8c9326be664d35bf3122`
 **Authorization:** CR-012A Fresh Implementation Authorization (this candidate supersedes no prior evidence; the original CR-012A candidate was lost and is unrecoverable — see governance record. This is a new implementation, not a reconstruction, and claims no equivalence to the lost candidate.)
 

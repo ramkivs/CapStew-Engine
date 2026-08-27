@@ -22,7 +22,12 @@ target_bands:
 # D-03 absolute max single-stock cap (G2)
 max_single_stock_pct: 10.0
 
-# D-04 rebalance trigger (× target mid-point)
+# D-04 rebalance trigger: fires when position allocation exceeds 1.5x target band TOP
+# (G2 -> TRIM-S to band top) — per Freeze §2 and app/gates.py (band[1] x this multiple).
+# CR-020 (2026-08-27) comment-only correction: the previous comment said "x target
+# mid-point", echoing Freeze §14's D-04 row wording; Freeze §2 and the implementation
+# use the band top. Freeze-internal wording discrepancy recorded in the E2E-017 register.
+# VALUE AND SEMANTICS UNCHANGED; policy_version NOT bumped.
 rebalance_trigger_multiple: 1.5
 
 # D-05 quality floor / thesis break (G1)

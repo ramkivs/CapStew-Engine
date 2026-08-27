@@ -1,6 +1,8 @@
 # CR-012B — G2 Threshold Sensitivity Characterization
 
-**Status:** FRESH IMPLEMENTATION CANDIDATE (test/doc-only)
+**Status:** MERGED / CURRENT (test/doc-only) — merged to `main` via PR #4 (history: `31073e6`, `ffdf9cb`).
+
+> **CR-020 note (2026-08-27):** the original status line read "FRESH IMPLEMENTATION CANDIDATE". That wording, and the Baseline/Authorization lines below, are retained verbatim as the historical record of how this candidate was authorized; only this status line is restated.
 **Baseline:** `origin/main` @ `ab429fbb84a5a5ef6017dca1cf8c31cae87009f2`
 **Authorization:** CR-012B Fresh Implementation Authorization (this candidate supersedes no prior evidence; the original CR-012B candidate was lost and is unrecoverable, and its recorded fingerprints, forensic-audit PASS, promotion-preflight PASS, scenario outputs, and test counts are VOID for this candidate. This is a new implementation, not a reconstruction, and claims no equivalence to the lost candidate.)
 

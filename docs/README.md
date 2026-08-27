@@ -9,6 +9,15 @@ The authoritative documentation for Capital Steward Engine. Read order:
 | 3 | `profit-booking-engine-analysis.md` | Historical findings/gaps/implementation-plan analysis produced during the review cycle (superseded where the freeze differs). |
 | 4 | `profit-booking-engine-ui-prototype.html` | Clickable single-file UI prototype — the visual source of truth for the React frontend. Open in any browser; self-contained (no network). |
 
+### Related governance & rule records (added CR-020, 2026-08-27)
+
+| Document | Role |
+|---|---|
+| `v1.1-authority-decisions-v1.md` | Frozen authority-decision record for the v1.1 cycle (V1.1-A). |
+| `version-provenance-rule-vp1.md` | VP-1 version-bump/provenance rule binding future engine-mutating CRs (E2E-017-PD R4). |
+| `backtest-methodology-addendum-v1.md` | CR-015 backtest methodology addendum (signed-provisional). |
+| `cr006-canonical-instrument-join.md` · `cr012a-weight-only-sensitivity.md` · `cr012b-g2-sensitivity-characterization.md` | Named-CR specification / closure records. |
+
 ## Authority chain
 
 ```

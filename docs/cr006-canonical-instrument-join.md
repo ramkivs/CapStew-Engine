@@ -4,6 +4,8 @@
 
 **Baseline (at recording):** branch `arena/01a033db-capstew-engine` @ `ebfbde2d65f6f351e58373f78cdbb1f21672e5a7` (`origin/main` @ `ffdf9cba2c7f5e479765c57f314f2cb7823d8138`)
 
+> **CR-020 annotation (2026-08-27, additive):** the recording-time branch tip above has since advanced — CR-006 join commit `ac9cd09`, then CR-006 remediation commit `e473417b75d0a60a9be7376803d4d77a867e5858` (G0 NO-DECISION hysteresis boundary fix: `app/decision.py` + `tests/test_cr006.py` T/U/V). `origin/main` remains `ffdf9cb`. The line above is preserved verbatim for audit.
+
 **Authorization:** CR-006 was separately authorized by the authority **after** the CR-006 read-only inspection. The authorization is:
 
 - not inferred from existing code;
@@ -79,6 +81,8 @@ Prior read-only classification of the actual three exports (A1+A2 = all 67 NO-DE
 | A4 other blocker | 0 |
 
 This is an acceptance **baseline**, NOT a guarantee. After implementation, acceptance must re-run the read-only classifier against the same three real exports. Expected **direction**: A1 → 0; A2 → remain blocked; A3 → 0; no new blocker class. "62 decisions restored" is NOT recorded as a guaranteed outcome; acceptance must be based on actual post-implementation evidence.
+
+> **CR-020 annotation (2026-08-27, additive — acceptance outcome):** the authority-executed post-implementation acceptance DID re-run against the same three real exports and PASSED at `e473417` (CR-006 remediation tree). Authority-reported record: HTTP 200; engine_version 0.3.1-phase3; HOLD 40 / WATCH 111 / NO-DECISION 5 / EXIT 7; G0_NO-DECISION = 5 = total NO-DECISION; no non-G0 NO-DECISION; no G4→NO-DECISION paths; the five NO-DECISION names were genuine NO_LOTS (ECOS Mobility, GMR Power Urban Infra, Grauer Weil, Matrimony, JKBANK); AGI Greenpac proceeded G4 → HOLD (composite 14.8) with `previous_run.decision = NO-DECISION` preserved audit-only — the remediated invariant. These figures are the authority-reported acceptance record (evidence-only), not a golden for other inputs.
 
 ## 6. Governance fences (verified at recording)
 

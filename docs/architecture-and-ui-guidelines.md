@@ -99,18 +99,31 @@ These lock the "will this be React?" question and everything downstream of it. E
 
 ## 11.3 Backend module breakdown
 
-| Module | Responsibility | Key functions | Output |
+> **CR-020 correction (2026-08-27):** the original v1.1 table named modules/functions before implementation settled. The table below is restated to the as-built inventory (`app/`); where planned and as-built names differ, the as-built module is authoritative.
+
+| Module (`app/`) | Responsibility | Key functions | Output |
 |---|---|---|---|
-| `ingest` | Parse the 3 CSVs | `parse_portfolio()`, `parse_screener()`, `parse_ledger()` | normalized rows |
-| `normalize` | Symbol mapping, date disambiguation, units | `map_name_to_ticker()`, `parse_date_ddmm_vs_iso()` | canonical rows |
-| `reconcile` | Cost-basis integrity | `check_qty_holds()`, `check_invested_matches()` | pass / hard-error list |
-| `lot_engine` | Per-lot FIFO tax | `build_lots()`, `days_to_ltcg()`, `lot_gain()` | `lots` table |
-| `gates` | Stage 1 hard gates | `thesis_break()`, `allocation_breach()`, `tax_defer()` | gate list |
-| `scoring` | Stage 2 composite + confidence | `subscore_*()`, `composite()`, `confidence()`, `accumulate_tag()` | scores |
-| `portfolio_layer` | Ranking, theme concentration, tax-year budget | `rank_candidates()`, `theme_check()`, `tax_budget()` | portfolio payload |
-| `writer` | Append-only persistence | `write_decisions()`, `input_hash()` | `decisions` records |
-| `policy` | Versioned parameters | `load_policy()`, `apply_overrides()` | policy dict |
-| `whatif` | Recomputation without persistence | `recompute_with_policy()` | payload (no write) |
+| `ingest` | Parse the 3 CSVs | `parse_portfolio()`, `parse_screener()`, `parse_ledger()` (tolerant; per-slot precheck in `main`) | parsed rows |
+| `normalize` | Date disambiguation, source-name preservation, units | date inference + raw-name retention (no ticker mapping — see `symbols`) | canonical rows |
+| `symbols` (CR-006) | Deterministic instrument identity + portfolio↔ledger join | `canonical_name_key()`, `build_portfolio_ledger_link()` (fail-closed collision blocking) | canonical join keys |
+| `reconcile` | Cost-basis integrity (G0) | per-name qty/invested checks | pass / blocking errors |
+| `lot_engine` | Per-lot FIFO tax lots + position roll-up | lot build, `days_to_ltcg`, aggregates (+ fundamentals join) | lots + positions |
+| `determinism` | Canonical JSON + `content_hash` | canonical serializer / run hash | hash |
+| `schema` (CR-001) | Runtime DecisionPayload validation | payload validator + `DECISIONS` enum (six states) | validated payload |
+| `behavior` | Averaging-into-losses guardrail | none / warn / block-adds flags | flag |
+| `gates` | Stage 1 gates G1–G3 (G0 handled by caller) | `evaluate_gates()` (single entry; strict precedence G1 > G2 > G3) | gate result |
+| `scoring` | Sub-scores, eligibility tiers, bands, four-state data quality | `composite()`, `band_of()`, eligibility caps | scores / tiers |
+| `confidence` | Confidence equation | `round(clamp(100 − Σ penalties, 20, 95))` | integer 20–95 |
+| `hysteresis` | Asymmetric transitions + N=2 persistence + gate bypass | `apply()`, `bypass()`, `seed()` | stabilized state |
+| `trim` | Constrained trim sizing (Freeze §5) | `trim_s()` (to band top), `trim_v()` (ρ), FIFO `sell_plan()` | trim plan |
+| `tax` | Tax-year subsystem | FIFO sell matching, S.74 set-off, exemption, carry-forward, `rank_candidates()` sequencing | tax payload |
+| `store` | Append-only run store (ADR-4) | `runs` table, `previous_holdings()` hysteresis seed, run diff | persisted runs |
+| `decision` | Per-instrument + portfolio decision assembly | `decide_instrument()`, `decide_all()` — action queue, theme concentration | DecisionPayload |
+| `pipeline` | Foundation + engine orchestration | `run_foundation()`, `run_engine()`, `decide_on_foundation()` | payloads |
+| `policy` | Policy load + validation (policy is data, not code) | loader + validator | policy dict |
+| `config` | Version constants + thresholds + paths | — | constants |
+
+Planned modules that did not ship under their v1.1 names (CR-020 record): `portfolio_layer` → responsibilities live in `tax.py` (sequencing), `decision.py` (queue, theme concentration), `store.py`; `writer` → `store.py`; `whatif` → `POST /what-if` in `main.py` (recompute, never persisted); `accumulate_tag` / the ACCUMULATE trigger → **GAP — never implemented (EMM-H3; disposition E2E-017-PD R2-C)**; `map_name_to_ticker` → superseded by the CR-006 deterministic `canonical_name_key()` join (no fuzzy/ticker heuristics — engine guardrail).
 
 ---
 
@@ -134,15 +147,17 @@ The UI's progress overlay shows exactly these 7 stages — it is a live reflecti
 
 From analysis §8.7, finalized here:
 
+> **CR-020 correction (2026-08-27):** as built, only the `runs` table (`data/engine.db`, ADR-4 append-only) and the versioned `policy/policy.yaml` file physically persist; `lots`/`positions` are in-memory structures rebuilt each run, not stored tables. Row annotations below mark planned-but-unimplemented structures.
+
 | Table | Columns (key fields bold) | Append-only? |
 |---|---|---|
 | `lots` | **lot_id**, instrument, trade_date, qty, buy_price, ltp, days_held, days_to_ltcg, ltcg_eligible, lot_gain, lot_gain_pct | Rebuilt each ingest |
 | `positions` | **instrument**, name, bucket, qty_held, avg_buy, invested, current_value, alloc_pct, gain_pct, first_date, last_date, theme_tags | Derived from lots |
-| `fundamentals_snapshot` | **snapshot_id**, **as_of_date**, instrument, pe, pb, peg, roe, roce, growth fields, debt_equity, pledge_pct, dii_3m, fii_3m, sma_200, premiums… | **Yes — archive every run** |
+| `fundamentals_snapshot` | **snapshot_id**, **as_of_date**, instrument, pe, pb, peg, roe, roce, growth fields, debt_equity, pledge_pct, dii_3m, fii_3m, sma_200, premiums… | **PLANNED — NOT IMPLEMENTED:** the snapshot archiver does not exist (recorded gaps G-04/G-05). Fundamentals are read from the current upload only; dated fundamentals history is irrecoverable until an archiver lands |
 | `decisions` | **run_id**, **as_of**, input_hash, policy_version, payload_json | **Yes** |
 | `policy` | **policy_id**, **effective_from**, weights_json, thresholds_json, bands_json | **Yes (versioned)** |
-| `themes` | **instrument**, theme | Manual, edited |
-| `sold` *(future)* | **sell_id**, instrument, qty, sell_date, sell_price | Yes (closes G-03, G-11) |
+| `themes` | **instrument**, theme | NOT IMPLEMENTED — manual theme tags never shipped (EMM-H2); the as-built proxy is the auto `sub_sector` grouping in the payload |
+| `sold` | **sell_id**, instrument, qty, sell_date, sell_price | Implemented differently: optional sold-transactions CSV on `POST /run` (or `fixtures/sold_sample.csv` via `run-sample`), consumed by `tax.py`; not a stored table |
 
 **Provenance (Freeze P1-4):** every input row carries `source, source_version, source_as_of, ingested_at, normalization_version`; every derived metric carries `calculation_version, policy_version`. Same lineage philosophy as `input_hash` + `policy_version`, applied to the data itself.
 
@@ -195,18 +210,28 @@ Dry-run reconciliation only — returns the report without scoring. Used by the 
 Liveness + engine version + data-as-of of the last run.
 
 ### Error envelope (uniform)
+
+> **CR-020 correction (2026-08-27):** restated to the as-built wire shape (`app/main.py:_api_error`). The previously documented flat `{"error": …}` envelope and code list were design-time text and were never the shipped serialization (recorded documentation-staleness item C3).
+
+As-built envelope (FastAPI serializes `detail` verbatim):
+
 ```json
 {
-  "error": {
-    "code": "RECONCILE_MISMATCH",
-    "severity": "blocking | warning",
-    "message": "AGI Greenpac: Σ(lot qty × buy) = ₹1,180.0 ≠ Invested ₹1,179.3",
-    "instrument": "AGI Greenpac",
-    "details": { "expected": 1179.3, "actual": 1180.0 }
+  "detail": {
+    "error": {
+      "code": "IMPORT_ERROR",
+      "severity": "blocking",
+      "message": "portfolio.csv line 42: …",
+      "stage": "parse:portfolio",
+      "file": "portfolio.csv"
+    }
   }
 }
 ```
-Error codes: `FILE_PARSE_ERROR`, `DATE_AMBIGUOUS`, `SYMBOL_UNMATCHED`, `RECONCILE_MISMATCH`, `NO_LOTS`, `POLICY_INVALID`, `NOT_FOUND`.
+
+As-built status/code mapping: `400 IMPORT_ERROR` (per-slot parse precheck with `stage: parse:<slot>` + `file`; ingest/ValueError family with `stage`) · `500 ENGINE_ERROR` (unexpected engine exceptions, with `stage`) · `500 INTERNAL_ERROR` (DecisionPayload validation failure, `details.errors`) · `400` plain detail string (non-`.csv` upload) · `404` plain detail string (no run yet / unknown run_id or instrument) · `422` FastAPI request validation / invalid `PUT /policy` (policy file untouched).
+
+Data-integrity and data-quality outcomes travel in the **payload**, not the envelope: `warnings[]` entries (`SYMBOL_UNMATCHED`, `PARTIAL_DATA`, `STALENESS`, `DATE_FORMAT_INFERRED`, `LEDGER_ONLY_LOTS`) and G0 blocking outcomes (`RECONCILE_MISMATCH`, `NO_LOTS`, `CANONICAL_NAME_COLLISION`) surface as NO-DECISION holdings plus payload warnings.
 
 ---
 
@@ -354,16 +379,18 @@ Error codes: `FILE_PARSE_ERROR`, `DATE_AMBIGUOUS`, `SYMBOL_UNMATCHED`, `RECONCIL
 
 ## 12.1 Frontend stack
 
-| Concern | Choice | Notes |
+> **CR-020 correction (2026-08-27):** several stack choices in the original table were never adopted (recorded documentation-staleness item C4). Rows below are restated to the as-built `frontend/package.json` (React 18.3.1 · Vite · TypeScript; no state, table, or test libraries).
+
+| Concern | Choice (as built) | Notes |
 |---|---|---|
-| Framework | React 18 + TypeScript (strict) | Vite build, `vite` dev server proxies `/api` → FastAPI |
-| Server state | TanStack Query | Caching, retries, `staleTime` for decisions payload |
-| Client state | Zustand | Tab, selected holding, weight-slider draft values |
-| Styling | Design tokens (CSS custom properties) | Match the prototype exactly; Tailwind optional but tokens are mandatory |
-| Tables | @tanstack/react-table | Sortable holdings table |
-| Virtualization | @tanstack/react-virtual | Only when holdings > ~100 rows |
-| Charts | None in v1 | Bars/rings are pure CSS/SVG (already in prototype) |
-| E2E | Playwright | 4 golden flows (§12.9) |
+| Framework | React 18 + TypeScript + Vite | Dev server proxies `/api` → FastAPI (`vite.config`: `allowedHosts: true`) |
+| Server state | None (no TanStack Query) | Plain React hooks over the single `api/` adapter layer (UI-1) |
+| Client state | React component state (no Zustand) | Tab, selected holding, what-if draft values |
+| Styling | Design tokens (CSS custom properties) | Match the prototype; Tailwind not used |
+| Tables | Plain `<table>` markup (no @tanstack/react-table) | Holdings table is hand-rolled |
+| Virtualization | Not used | — |
+| Charts | None | Bars/rings are pure CSS/SVG (already in prototype) |
+| E2E / component tests | **None** (no Playwright/Vitest dependency) | See §12.9 correction; any future harness requires a separately named CR |
 
 **Why these:** the prototype already implements every visual element with plain CSS/SVG — no chart library is needed, which keeps the bundle small and the preview-environment constraint moot.
 
@@ -595,12 +622,14 @@ signed/provisional until separately authorized.
 
 ## 12.9 Testing plan
 
-| Layer | Tool | Covers |
-|---|---|---|
-| Engine unit | pytest | reconcile math, FIFO lot engine (exact 365-day boundary, split lots, sells), gates, composite renormalization, trim sizing, confidence penalties |
-| Contract | pytest snapshot | `decisions.json` against fixture CSVs — the UI's only contract |
-| Component | Vitest + RTL | badge mapping, slider total normalization, null-rendering (`—`), sign coloring |
-| E2E | Playwright | 4 golden flows: **upload→run→inspect detail** · **drag weight→decision flips** · **what-if no-persist** · **reconcile-mismatch error toast** |
+> **CR-020 correction (2026-08-27):** the Component and E2E rows were planned but never adopted — `frontend/package.json` has no test dependencies or scripts (staleness item C4). Any future UI test harness is a separately named CR; manual / observed-rendered verification (E2E-018 evidence standard) is the interim UI assurance mechanism.
+
+| Layer | Tool | Covers | Status (CR-020, 2026-08-27) |
+|---|---|---|---|
+| Engine unit | pytest | reconcile math, FIFO lot engine (exact 365-day boundary, split lots, sells), gates, composite renormalization, trim sizing, confidence penalties | CURRENT — suite size epoch-stamped in root README |
+| Contract | pytest snapshot | DecisionPayload against fixture CSVs — the UI's only contract | CURRENT (incl. CR-001 runtime payload validation) |
+| Component | Vitest + RTL | badge mapping, slider total normalization, null-rendering (`—`), sign coloring | NOT ADOPTED (C4) — never shipped |
+| E2E | Playwright | 4 golden flows: **upload→run→inspect detail** · **drag weight→decision flips** · **what-if no-persist** · **reconcile-mismatch error toast** | NOT ADOPTED (C4) — never shipped |
 
 ---
 

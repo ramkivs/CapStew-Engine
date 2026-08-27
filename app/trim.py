@@ -10,7 +10,9 @@ participation cap (ADV unknown in v1 → 25% of quantity); allocation-after <= b
 from .scoring import band_for
 
 RHO = 0.25  # Freeze §5: rho ∈ [0.25, 0.50] (policy range; default = lower bound)
-HEADROOM = 125000.0  # provisional: realized-gains export is a gap (spec §9.3)
+HEADROOM = 125000.0  # Freeze §5: ₹1.25L LTCG headroom (emergent in the tax-cost objective).
+# CR-020 (2026-08-27) comment-only correction: supersedes the stale "(spec §9.3)" pointer —
+# the realized-gains export remains a recorded data gap (E2E register). Constant unchanged.
 
 
 def sell_plan(lots, qty_to_sell, policy, txn_pct):
