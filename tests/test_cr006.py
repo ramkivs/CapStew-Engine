@@ -443,3 +443,95 @@ def test_s_collision_fail_closed_no_arbitrary_lot_or_decision():
     assert h["decision"] == "NO-DECISION"
     assert h["reason_tree"]["decision_path"] == "G0 → NO-DECISION (reconciliation blocked)"
     assert "lots" not in h or not h["lots"]  # nothing was arbitrarily selected
+
+
+# --- T/U/V. CR-006 remediation: G0 NO-DECISION must not seed G4 hysteresis ------
+#
+# Root cause: a persisted G0 NO-DECISION was seeded into the G4 hysteresis
+# state machine, so a currently unblocked holding spent N=2 persistence
+# "leaving" G0 (first run returned NO-DECISION, e.g. real-run AGI Greenpac:
+# composite 14.8, raw band HOLD, output NO-DECISION). The remediation treats
+# historical NO-DECISION as an audit status only: previous_run is preserved
+# verbatim, but the current raw band establishes the current G4 state.
+
+def _remediation_foundation():
+    fundamentals = {
+        "pe_ratio": 12.0, "pb_ratio": 1.8, "peg_ratio": 0.8, "roe": 20.0,
+        "roce": 18.0, "eps_growth_1y_hist": 15.0, "eps_growth_1y_fwd": 12.0,
+        "debt_equity": 0.3, "interest_coverage": 10.0, "price_fcf": 20.0,
+        "pe_premium_vs_subsector": 0.6, "pb_premium_vs_subsector": 0.9,
+        "dii_change_3m": 0.0, "fii_change_3m": 0.0, "sma_200": 100.0,
+        "close_price": 110.0, "market_cap_cr": 50000.0,
+        "sub_sector": "Industrials",
+    }
+    position = {
+        "instrument": "Trace Industries", "ticker": None, "bucket": "large",
+        "qty_held": 20, "avg_buy_price": 100.0, "invested": 2000.0,
+        "current_value": 2200.0, "alloc_pct": 6.0, "gain_pct": 10.0,
+        "net_cashflow": 200.0, "first_date": "2025-10-15",
+        "last_date": "2025-11-02", "lot_count": 2, "in_screener": True,
+        "pledge_pct": 0.0, "fundamentals": fundamentals,
+    }
+
+    def lot(lot_id, tdate, days_held, days_to_ltcg):
+        return {
+            "lot_id": lot_id, "instrument": "Trace Industries", "ticker": None,
+            "trade_date": tdate, "qty": 10.0, "buy_price": 100.0, "ltp": 110.0,
+            "invested": 1000.0, "value": 1100.0, "pnl": 100.0, "pnl_pct": 10.0,
+            "days_held": days_held, "days_to_ltcg": days_to_ltcg,
+            "ltcg_eligible": False,
+        }
+
+    return {
+        "run_id": "run_cr006_t", "as_of": "2026-08-27", "content_hash": "x",
+        "positions": [position],
+        "lots": [lot(1, "2025-10-15", 316, 49), lot(2, "2025-11-02", 298, 67)],
+        "reconciliation": {"ok": True, "blocking": 0, "warnings": 0,
+                           "checks": [], "issues": []},
+        "warnings": [], "data_as_of": {"stale_files": []},
+    }
+
+
+_NO_DECISION_HISTORY = {
+    "Trace Industries": {"decision": "NO-DECISION", "composite_score": None,
+                         "as_of": "2026-08-20"},
+}
+
+
+def test_t_g0_no_decision_history_does_not_seed_g4_hysteresis():
+    # Persisted previous decision NO-DECISION; current run unblocked; current
+    # raw G4 band = HOLD. ONE run must suffice — no N=2 wait to leave G0.
+    payload = decide_all(_remediation_foundation(), history=_NO_DECISION_HISTORY)
+    h = payload["holdings"][0]
+    assert h["decision"] == "HOLD"
+    assert h["composite_score"] is not None and h["composite_score"] <= 30  # HOLD band
+    assert h["evidence"]["tier"] == "NORMAL"  # full coverage, as in the real AGI case
+    assert h["reason_tree"]["decision_path"].startswith("G4 → HOLD (composite")
+    # historical audit field preserved verbatim
+    assert h["previous_run"]["decision"] == "NO-DECISION"
+    assert h["previous_run"]["composite_score"] is None
+    assert h["previous_run"]["as_of"] == "2026-08-20"
+
+
+def test_u_legitimate_g4_hysteresis_n2_unchanged():
+    # Control: previous decision WATCH is a legitimate G4 state — the frozen
+    # N=2 machinery must still hold it on the first run (raw band HOLD,
+    # transition WATCH→HOLD requires 2 distinct as_of dates).
+    history = {"Trace Industries": {"decision": "WATCH", "composite_score": 20.0,
+                                    "as_of": "2026-08-20"}}
+    payload = decide_all(_remediation_foundation(), history=history)
+    h = payload["holdings"][0]
+    assert h["decision"] == "WATCH"  # N=2 persistence intact
+    assert h["previous_run"]["decision"] == "WATCH"
+
+
+def test_v_gate_bypass_with_no_decision_history_unchanged():
+    # Control: a Stage-1 gate bypasses hysteresis regardless of seeded
+    # NO-DECISION history — behavior must be identical to pre-remediation.
+    foundation = _remediation_foundation()
+    foundation["positions"][0]["pledge_pct"] = 12.4  # above the G1 10% threshold
+    payload = decide_all(foundation, history=_NO_DECISION_HISTORY)
+    h = payload["holdings"][0]
+    assert h["decision"] == "EXIT"
+    assert h["stage1"]["winning_gate"] == "G1"
+    assert h["previous_run"]["decision"] == "NO-DECISION"

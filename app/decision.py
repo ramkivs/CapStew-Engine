@@ -155,7 +155,18 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
         raw_band = band_of(comp)
         decision = raw_band
         if apply_hysteresis:
-            decision = hv.apply(instrument, raw_band, comp, as_of)
+            # CR-006 remediation: a persisted G0 NO-DECISION is an audit
+            # status, not an established G4 hysteresis state. It stays visible
+            # via `previous_run` (hv.get_prev above), but a holding that is no
+            # longer G0-blocked must not spend N=2 persistence "leaving" G0 —
+            # the current raw band establishes the current G4 state directly.
+            # Ordinary G4↔G4 transitions (HOLD/WATCH/TRIM/HARVEST) still go
+            # through the frozen asymmetric/N=2 state machine unchanged.
+            if prev and prev.get("decision") == "NO-DECISION":
+                hv.state[instrument] = {"decision": raw_band, "score": comp,
+                                        "as_of": as_of.isoformat(), "pending": None}
+            else:
+                decision = hv.apply(instrument, raw_band, comp, as_of)
         decision, caps_note = apply_eligibility_caps(decision, ev["tier"], ev["critical_categories_missing"])
         trim_mode = "V" if decision == "TRIM" else None
 
