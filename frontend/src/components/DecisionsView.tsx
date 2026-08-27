@@ -95,6 +95,10 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
             <b style={{ color: 'var(--text)' }}>Gate state</b><br />
             Gate chips use backend <span className="kbd">stage1</span> fields to show whether a hard gate drove the decision path.
           </div>
+          <div className="note" style={{ gridColumn: '1 / -1' }}>
+            <b style={{ color: 'var(--text)' }}>Decision meanings</b><br />
+            CapSteward does not use a separate “Book Profit” action. <b>TRIM-S</b> is sizing/risk repair; <b>TRIM-V</b> is valuation-driven partial profit realization. <b>HARVEST</b> is full profit realization when the target/value case is played out. <b>EXIT</b> is a full exit driven by a thesis, governance, or risk gate. Profit realization is driven by the engine’s decision methodology—not by a fixed return-percentage trigger.
+          </div>
         </div>
       </div>
 
@@ -107,9 +111,10 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
             <span style={{ color: '#fbbf24' }}>{dist.WATCH ?? 0}</span>{' '}
             <span style={{ color: '#fb923c' }}>{dist.TRIM ?? 0}</span>{' '}
             <span style={{ color: '#a78bfa' }}>{dist.HARVEST ?? 0}</span>{' '}
-            <span style={{ color: '#f87171' }}>{dist.EXIT ?? 0}</span>
+            <span style={{ color: '#f87171' }}>{dist.EXIT ?? 0}</span>{' '}
+            <span style={{ color: '#94a3b8' }}>{dist['NO-DECISION'] ?? 0}</span>
           </span>}
-          s="HOLD · WATCH · TRIM · HARVEST · EXIT" />
+          s="HOLD · WATCH · TRIM · HARVEST · EXIT · NO-DECISION" />
         <Stat k="LTCG headroom" v={`₹${num(tax.ltcg_headroom as number)}`}
           s={tax.provisional ? 'provisional — no sold ledger' : 'realised from sold ledger'} />
         <Stat k="Gate-driven holdings" v={<span style={{ color: 'var(--red)' }}>{p.portfolio_summary.stage1_gates_fired}</span>}
