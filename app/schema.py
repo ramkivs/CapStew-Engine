@@ -247,6 +247,9 @@ def _validate_archive_provenance(value: Any, path: str, errors: list[str]) -> No
                 _sha256_hex(sha, f"{path}.raw_sha256.{slot}", errors)
     _sha256_hex(value.get("foundation_sha256"), f"{path}.foundation_sha256", errors)
     _sha256_hex(value.get("policy_sha256"), f"{path}.policy_sha256", errors)
+    # CR-023 (additive, optional): authority theme-document integrity hash.
+    if "themes_sha256" in value:
+        _sha256_hex(value.get("themes_sha256"), f"{path}.themes_sha256", errors)
 
 
 def _validate_portfolio_summary(value: Any, path: str, errors: list[str]) -> None:
@@ -634,6 +637,12 @@ def _validate_theme_concentration(value: Any, path: str, errors: list[str]) -> N
         _string(item.get("theme"), f"{ipath}.theme", errors)
         _number(item.get("alloc_pct"), f"{ipath}.alloc_pct", errors)
         _string(item.get("status"), f"{ipath}.status", errors)
+        # CR-023 (additive, optional): grouping provenance label.
+        if "source" in item:
+            src = item.get("source")
+            if src not in ("manual", "fallback_sub_sector"):
+                _add(errors, f"{ipath}.source",
+                     "expected 'manual' or 'fallback_sub_sector'")
 
 
 def _validate_tax_sequencing(value: Any, path: str, errors: list[str]) -> None:

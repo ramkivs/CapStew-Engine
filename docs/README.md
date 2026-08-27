@@ -18,6 +18,7 @@ The authoritative documentation for Capital Steward Engine. Read order:
 | `backtest-methodology-addendum-v1.md` | CR-015 backtest methodology addendum (signed-provisional). |
 | `cr006-canonical-instrument-join.md` · `cr012a-weight-only-sensitivity.md` · `cr012b-g2-sensitivity-characterization.md` | Named-CR specification / closure records. |
 | `cr022-snapshot-archive.md` | CR-022 (EMM-F2) snapshot archiver: content-addressed input evidence store, integrity model, dual-timestamp semantics, G-04/G-05 status and real-data UAT protocol. |
+| `cr023-manual-theme-tags.md` | CR-023 (EMM-H2/G-14) manual theme-tag layer: signed-off taxonomy, precedence/fallback/threshold dispositions, document format, replay/provenance pattern, real-data UAT protocol. |
 
 ## Authority chain
 

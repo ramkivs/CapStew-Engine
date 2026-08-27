@@ -163,7 +163,8 @@ def read_blob(sha256_hex: str, root=None) -> bytes:
 # ---- payload-visible archive identity (F2-D4, deterministic) ------------------
 
 
-def archive_identity(foundation_sha256: str, policy_sha256: str) -> dict:
+def archive_identity(foundation_sha256: str, policy_sha256: str,
+                     themes_sha256: str | None = None) -> dict:
     """Payload-visible archive provenance block — fully content-derived.
 
     Embedded in ``provenance.archive`` before the payload content hash is
@@ -175,13 +176,18 @@ def archive_identity(foundation_sha256: str, policy_sha256: str) -> dict:
     logical-input hash equivalence (CR-005) and determinism (Freeze §8).
     Per-file raw SHA-256, ingested_at and the hash chain live only in the
     manifest, reachable via run_id from any persisted run payload.
+    CR-023: ``themes_sha256`` (integrity hash of the authority theme mapping
+    document) is included whenever a theme document participated in the run.
     """
-    return {
+    block = {
         "archive_version": config.ARCHIVE_VERSION,
         "manifest": MANIFEST_NAME,
         "foundation_sha256": foundation_sha256,
         "policy_sha256": policy_sha256,
     }
+    if themes_sha256 is not None:
+        block["themes_sha256"] = themes_sha256
+    return block
 
 
 # ---- append-only hash-chained manifest (F2-D6) ---------------------------------

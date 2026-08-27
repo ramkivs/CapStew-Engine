@@ -63,7 +63,7 @@ def test_required_contract_fields_present(foundation):
 
 def test_decision_payload_audit_fields(foundation):
     p = _run()
-    assert p["engine_version"].startswith("0.4")
+    assert p["engine_version"].startswith("0.5")
     assert p["policy_version"] == 1
     assert p["input_hash"] == foundation["content_hash"]
     assert p["content_hash"]

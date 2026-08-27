@@ -1,16 +1,19 @@
 """Engine-level constants and the name→ticker symbol map (Phase 1)."""
 from pathlib import Path
 
-# CR-022 / VP-1: payload-visible provenance changed (provenance.archive + dual
-# source-date labels) => ENGINE_VERSION bump. CALCULATION_VERSION and
-# NORMALIZATION_VERSION are unchanged: no scoring/decision math and no
-# date/symbol normalization semantics changed.
-ENGINE_VERSION = "0.4.0-phase3"
+# CR-023 / VP-1: payload-visible provenance again (per-position theme +
+# theme_source, themes_sha256 in provenance.archive, theme concentration
+# grouping switch) => ENGINE_VERSION bump. Calculation/normalization lineage
+# unchanged on purpose: the manual tag changes ONLY the concentration grouping
+# surface, never scoring/decision math (H2-D2-A).
+ENGINE_VERSION = "0.5.0-phase3"
 PHASE = ("Phase 3 — tax-year subsystem + run history/diff + provenance "
-         "(UI contract fields) + CR-022 snapshot archive/provenance")
+         "(UI contract fields) + CR-022 snapshot archive + CR-023 manual "
+         "theme-tag layer (EMM-H2)")
 
 ROOT = Path(__file__).resolve().parent.parent
 POLICY_PATH = ROOT / "policy" / "policy.yaml"
+THEMES_PATH = ROOT / "themes" / "themes.yaml"   # CR-023 authority mapping (NOT policy)
 STORE_PATH = ROOT / "data" / "engine.db"   # append-only run store (ADR-4)
 
 NORMALIZATION_VERSION = "1.0"   # date/symbol normalization lineage

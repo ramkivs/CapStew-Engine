@@ -1,0 +1,100 @@
+# CR-023 / EMM-H2 — MANUAL THEME-TAG MAPPING DOCUMENT (authority-controlled)
+#
+# HOLDINGS-FREE v1: the signed-off factor-theme taxonomy (6 themes) with ZERO
+# assignments. Every holding therefore groups by the sub_sector fallback
+# (H2-D3-A) until the authority performs the manual tag pass and issues a new
+# document version.
+#
+# Governance:
+#   - Authority-controlled (H2-D5-A): edits only via the authority tag pass,
+#     each producing a NEW document_version with a NEW effective_from.
+#   - NOT policy.yaml (policy-semantics fence untouched).
+#   - Theme IDs are immutable; renaming a name requires a rename_history
+#     entry + new document_version (H2-D9-A); historical runs keep their
+#     original meaning (payloads and CR-022 archives are immutable).
+#   - Provenance-bearing (H2-D7): every assignment must carry the required
+#     provenance fields; this header records document provenance.
+#
+# Document provenance:
+#   owner:           Ramki (authority)
+#   source:          EMM-H2 authority dispositions H2-D1..D10 (2026-08-27) +
+#                    CR-023 taxonomy sign-off (2026-08-28)
+#   change identity: chg-cr023-taxonomy-v1
+schema_version: 1
+document_version: 1
+effective_from: "2026-08-28"
+owner: "Ramki (authority)"
+source: "EMM-H2 dispositions H2-D1..D10 + CR-023 taxonomy sign-off (2026-08-28)"
+change_id: "chg-cr023-taxonomy-v1"
+
+taxonomy:
+  - id: RATE_FIN
+    name: "Rate-sensitive financials"
+    definition: >
+      Lending balance-sheet businesses whose equity economics track the
+      interest-rate and credit cycle (NIM, credit costs, rate sensitivity).
+    inclusion_rule: >
+      Private banks, PSU banks, NBFCs, housing-finance companies —
+      net-interest-margin driven business models.
+    exclusion_rule: >
+      Fee/transaction-driven market intermediaries (exchanges, brokers,
+      depositories, AMCs, wealth/distribution) => CAPITAL_MARKETS-style
+      fallback (sub_sector). Insurers excluded in v1. PSU-owned lenders still
+      classify RATE_FIN (credit-cycle factor dominates); record the choice in
+      the assignment rationale.
+  - id: PSU_GOV
+    name: "PSU / government-linked"
+    definition: >
+      Enterprises whose equity story is dominated by state ownership and
+      policy (disinvestment, administered pricing, dividend policy).
+    inclusion_rule: >
+      Central/state majority-government-owned listed companies in any
+      industry where ownership/policy is the dominant factor.
+    exclusion_rule: >
+      PSU-owned lenders default to RATE_FIN (dominant-factor rule). A PSU
+      non-lender assigned here needs no further test.
+  - id: CAPEX_INFRA
+    name: "Capex / infrastructure"
+    definition: >
+      Order-book and capital-goods businesses tracking the public/private
+      capex cycle, including defence indigenisation order flow.
+    inclusion_rule: >
+      EPC and construction firms, infrastructure developers, capital-goods
+      manufacturers, defence contractors.
+    exclusion_rule: >
+      Pure commodity producers (steel, cement, metals, energy) are a
+      commodity-price factor — no commodity theme exists in v1, so they fall
+      back to sub_sector. A PSU order-book PSU name: CAPEX_INFRA if the
+      thesis is the order book, PSU_GOV if the thesis is state policy —
+      decided at tagging time, recorded in rationale.
+  - id: CONSUMPTION
+    name: "Consumption"
+    definition: >
+      Domestic-demand businesses whose economics track India consumer demand
+      (staples, discretionary, retail, autos/ancillaries, durables, QSR).
+    inclusion_rule: >
+      Revenue predominantly India B2C demand driven.
+    exclusion_rule: >
+      Consumer lenders belong to RATE_FIN (balance-sheet factor wins).
+      Export-oriented consumer supply chains are unassigned (fallback) unless
+      domestic demand is dominant.
+  - id: PHARMA_HEALTH
+    name: "Pharma / healthcare"
+    definition: >
+      Regulated healthcare: US-FDA/global generics and API cycle, domestic
+      formulations, hospitals and diagnostics.
+    inclusion_rule: >
+      Pharma, API/CRAMS, hospitals, diagnostics.
+    exclusion_rule: >
+      No overlap expected with other themes in v1.
+  - id: IT_EXPORT
+    name: "IT / export services"
+    definition: >
+      USD-linked export-services businesses: IT services, BPO/KPO, ER&D.
+    inclusion_rule: >
+      Revenue majority from export services.
+    exclusion_rule: >
+      Domestic digital/consumer platforms without export-services economics
+      => CONSUMPTION or sub_sector fallback.
+
+assignments: []   # v1: authority tag pass pending — all holdings fall back to sub_sector

@@ -33,6 +33,16 @@ from .trim import trim_s, trim_v
 
 PRIORITY = {"EXIT": 0, "TRIM": 1, "HARVEST": 2}
 
+# CR-023 / G-14 (H2-D4-A, authority-confirmed): informational breach when the
+# summed allocation of a theme group is STRICTLY greater than 20%. Exactly 20%
+# is NOT a breach. No per-theme bands; threshold is a module constant, not a
+# new policy item.
+THEME_BREACH_THRESHOLD_PCT = 20.0
+
+
+def _theme_status(theme_alloc_pct):
+    return "breach" if theme_alloc_pct > THEME_BREACH_THRESHOLD_PCT else "ok"
+
 
 def _merge_policy(base, overrides):
     if not overrides:
@@ -352,12 +362,27 @@ def decide_all(foundation, policy_overrides=None, hysteresis=None, apply_hystere
     ]
 
     theme = {}
+    theme_row_src = {}
     for p in positions:
-        f = p.get("fundamentals")
-        sub = (f or {}).get("sub_sector") or "Unknown"
-        theme[sub] = theme.get(sub, 0.0) + (p.get("alloc_pct") or 0.0)
+        # CR-023 / H2-D2/D3: group by the resolved per-position theme (manual
+        # tag where assigned, else the sub_sector fallback). Legacy foundation
+        # payloads (pre-CR-023) carry no theme fields — derive the historical
+        # sub_sector key exactly as before. fundamentals.sub_sector itself is
+        # never read as a substitute for a manual tag.
+        t = p.get("theme")
+        src = p.get("theme_source")
+        if t is None:
+            f = p.get("fundamentals")
+            t = (f or {}).get("sub_sector") or "Unknown"
+            src = "fallback_sub_sector"
+        theme[t] = theme.get(t, 0.0) + (p.get("alloc_pct") or 0.0)
+        theme_row_src.setdefault(t, set()).add(src or "fallback_sub_sector")
     theme_conc = [
-        {"theme": k, "alloc_pct": round(v, 2), "status": "breach" if v > 20 else "ok"}
+        {"theme": k, "alloc_pct": round(v, 2), "status": _theme_status(v),
+         # CR-023 additive: a row is 'manual' iff any member carried a manual
+         # tag; fallback rows are labelled 'fallback_sub_sector' (H2-D3/D7).
+         "source": "manual" if "manual" in theme_row_src.get(k, set())
+                   else "fallback_sub_sector"}
         for k, v in sorted(theme.items(), key=lambda kv: -kv[1])
     ]
 

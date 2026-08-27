@@ -86,6 +86,9 @@ def test_raw_bytes_archived():
 def test_raw_sha256_stable_across_runs():
     expected = {slot: _sha(FIXDIR / f"{slot}.csv")
                 for slot in ("portfolio", "screener", "ledger")}
+    # CR-023: the ingest record also captures the authority theme document.
+    expected["themes_document"] = hashlib.sha256(
+        (ROOT / "themes" / "themes.yaml").read_bytes()).hexdigest()
     for _ in range(2):
         payload = _fixture_run()
         entry = _ingest_entry(payload["run_id"])
@@ -114,9 +117,12 @@ def test_normalized_foundation_archived():
     # reproduce the archived bytes exactly (hash stability, F2-D5).
     assert archive.foundation_blob_bytes(corpus) == blob.read_bytes()
     # The input hash of the persisted run reconstructs from the corpus alone.
+    # CR-023: the block also carries the authority theme-document hash.
+    themes_sha = _slot_record(entry, "themes_document")["sha256"]
     rebuilt = {k: v for k, v in corpus.items() if k != "archive_blob_kind"}
     rebuilt["provenance"]["archive"] = archive.archive_identity(
-        entry["foundation_sha256"], entry["policy_sha256"])
+        entry["foundation_sha256"], entry["policy_sha256"],
+        themes_sha256=themes_sha)
     assert content_hash(rebuilt) == payload["input_hash"]
 
 
@@ -149,6 +155,8 @@ def test_manifest_links_run():
     assert prov["manifest"] == archive.MANIFEST_NAME
     assert prov["foundation_sha256"] == entry["foundation_sha256"]
     assert prov["policy_sha256"] == entry["policy_sha256"]
+    # CR-023: authority theme-document hash is linked too.
+    assert prov["themes_sha256"] == _slot_record(entry, "themes_document")["sha256"]
 
 
 def test_archive_version_recorded():
@@ -157,11 +165,12 @@ def test_archive_version_recorded():
     assert payload["provenance"]["archive"]["archive_version"] == 1
     for entry in archive.read_manifest():
         assert entry["archive_version"] == 1
-    # VP-1: payload-visible provenance changed => ENGINE_VERSION bumped;
-    # calculation/normalization lineage untouched (no math/normalizer change).
-    assert config.ENGINE_VERSION == "0.4.0-phase3"
-    assert payload["engine_version"] == "0.4.0-phase3"
-    assert payload["provenance"]["engine_version"] == "0.4.0-phase3"
+    # VP-1: payload-visible provenance changed => ENGINE_VERSION bumped
+    # (CR-022 0.4.0; CR-023 theme layer -> 0.5.0); calculation/normalization
+    # lineage untouched (no math/normalizer change).
+    assert config.ENGINE_VERSION == "0.5.0-phase3"
+    assert payload["engine_version"] == "0.5.0-phase3"
+    assert payload["provenance"]["engine_version"] == "0.5.0-phase3"
     assert config.CALCULATION_VERSION == "2.1"
     assert config.NORMALIZATION_VERSION == "1.0"
 
@@ -199,9 +208,11 @@ def test_replay_from_archived_foundation_produces_identical_result():
 
     entry = _ingest_entry(foundation["run_id"])
     corpus = json.loads(archive.read_blob(entry["foundation_sha256"]).decode("utf-8"))
+    themes_sha = _slot_record(entry, "themes_document")["sha256"]
     rebuilt = {k: v for k, v in corpus.items() if k != "archive_blob_kind"}
     rebuilt["provenance"]["archive"] = archive.archive_identity(
-        entry["foundation_sha256"], entry["policy_sha256"])
+        entry["foundation_sha256"], entry["policy_sha256"],
+        themes_sha256=themes_sha)
     rebuilt["run_id"] = "replay_does_not_matter"
     rebuilt["content_hash"] = content_hash(
         {k: v for k, v in rebuilt.items() if k != "run_id"})

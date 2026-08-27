@@ -132,11 +132,46 @@ export interface DecisionPayload {
   holdings: Holding[];
   portfolio_layer: {
     action_queue: ActionQueueItem[];
-    theme_concentration: { theme: string; alloc_pct: number; status: string }[];
+    theme_concentration: { theme: string; alloc_pct: number; status: string; source?: string }[];
     tax_sequencing: { instrument: string; decision: string; ltcg_gain: number; stcg_gain: number; est_tax_if_realised: number }[];
   };
   tax_year?: TaxYear;
   warnings: { code: string; instrument: string | null; message: string }[];
+}
+
+// CR-023 / EMM-H2: authority theme mapping document (read-only readout).
+export interface ThemeTaxonomyEntry {
+  id: string;
+  name: string;
+  definition: string;
+  inclusion_rule: string;
+  exclusion_rule: string;
+  rename_history?: { name: string; until_version?: number }[];
+}
+
+export interface ThemeAssignment {
+  instrument: string;
+  theme: string;
+  owner: string;
+  source: string;
+  effective_from: string;
+  version: number;
+  change_id: string;
+  rationale?: string;
+}
+
+export interface ThemeDocument {
+  schema_version: number;
+  document_version: number;
+  effective_from: string | null;
+  owner: string | null;
+  source: string | null;
+  change_id: string | null;
+  taxonomy: ThemeTaxonomyEntry[];
+  assignments: ThemeAssignment[];
+  sha256: string | null;
+  document?: string;
+  control?: string;
 }
 
 export interface RunListItem {

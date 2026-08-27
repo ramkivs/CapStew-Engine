@@ -402,6 +402,31 @@ def get_policy():
     return load_policy()
 
 
+@app.get("/api/v1/themes")
+def get_themes():
+    """Read-only readout of the authority theme mapping document (CR-023).
+
+    Display support only (H2-D10/UI constraint): there is deliberately NO
+    POST/PUT — the document is authority-controlled and not user-editable.
+    An invalid document is a blocking configuration failure, never repaired.
+    """
+    import hashlib as _hashlib
+
+    from . import themes as themes_mod
+    try:
+        doc = themes_mod.load_and_validate()
+    except Exception as exc:
+        _api_error(500, "ENGINE_ERROR", f"theme mapping document invalid: {exc}",
+                   stage="themes")
+    data = themes_mod.document_bytes()
+    return {
+        **doc,
+        "sha256": _hashlib.sha256(data).hexdigest() if data is not None else None,
+        "document": "themes/themes.yaml",
+        "control": "authority-controlled (H2-D5-A) — read-only via API",
+    }
+
+
 @app.put("/api/v1/policy")
 def put_policy(body: dict):
     from .policy import POLICY_PATH, load_policy, validate_policy

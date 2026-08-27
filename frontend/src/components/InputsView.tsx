@@ -1,6 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Banner } from './ui';
 import { log } from '../activityLog';
+import { themes } from '../api/themes';
+import type { ThemeDocument } from '../types';
 
 const STEPS = [
   'Parse 3 files & normalise dates (DD-MM vs ISO)',
@@ -23,6 +25,11 @@ export function InputsView({ running, onRunSample, onRunFiles }: {
   const [sold, setSold] = useState<File | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [step, setStep] = useState(-1);
+  // CR-023: read-only readout of the authority theme mapping document (H2-D5/D7).
+  const [themeDoc, setThemeDoc] = useState<ThemeDocument | null>(null);
+  useEffect(() => {
+    themes.current().then(setThemeDoc).catch(() => setThemeDoc(null));
+  }, []);
 
   const stepTimer = useRef<number | null>(null);
 
@@ -116,6 +123,35 @@ export function InputsView({ running, onRunSample, onRunFiles }: {
         <div className="note" style={{ marginTop: 10 }}>
           This screen explains the validation path only. It does not perform reconciliation, scoring, gating, trim, sizing, or tax calculations in the browser.
         </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <h3>Theme mapping <span className="tag">authority document (G-14) · read-only</span></h3>
+        {themeDoc ? (
+          <>
+            <div className="note" style={{ marginBottom: 10 }}>
+              <b style={{ color: 'var(--text)' }}>{themeDoc.document}</b> · version {themeDoc.document_version}
+              {themeDoc.effective_from ? <> · effective {themeDoc.effective_from}</> : null}
+              {themeDoc.sha256 ? <> · sha256 <span className="kbd">{themeDoc.sha256.slice(0, 12)}…</span></> : null}
+              <br />{themeDoc.control} · owner: {themeDoc.owner ?? '—'}
+            </div>
+            <div className="grid cols-3">
+              {themeDoc.taxonomy.map((t) => (
+                <div className="note" key={t.id}>
+                  <b style={{ color: 'var(--text)' }}>{t.name}</b> <span className="kbd">{t.id}</span>
+                  <br />{t.definition}
+                </div>
+              ))}
+            </div>
+            <div className="note" style={{ marginTop: 10 }}>
+              {themeDoc.assignments.length === 0
+                ? 'No manual assignments in this version — every holding groups by the sub-sector fallback (H2-D3-A). Manual tags are set only by the authority tag pass in a new document version.'
+                : `Manual assignments (${themeDoc.assignments.length}): ${themeDoc.assignments.map((a) => `${a.instrument} → ${a.theme}`).join(' · ')}`}
+            </div>
+          </>
+        ) : (
+          <div className="note">Theme mapping document unavailable — the backend has not exposed a readable document.</div>
+        )}
       </div>
 
       {err ? <div style={{ marginTop: 14 }}><Banner kind="err">⚠ {err}</Banner></div> : null}

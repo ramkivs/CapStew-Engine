@@ -239,7 +239,9 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
             <h3>Theme concentration <span className="tag">rebalance check</span></h3>
             {p.portfolio_layer.theme_concentration.map((t) => (
               <div key={t.theme} className="cfg">
-                <div className="lbl"><b>{t.theme}</b><small>sub-sector</small></div>
+                <div className="lbl"><b>{t.theme}</b>
+                  <small>{t.source === 'manual' ? 'manual theme (G-14)' : 'sub-sector fallback'}</small>
+                </div>
                 <Bar value={Math.min(100, t.alloc_pct * 5)} color={t.status === 'breach' ? 'var(--yellow)' : 'var(--green)'} />
                 <div className="val" style={{ color: t.status === 'breach' ? 'var(--yellow)' : undefined }}>
                   {t.alloc_pct.toFixed(1)}%

@@ -20,6 +20,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from . import archive, config
+from . import themes as themes_mod
 from .determinism import content_hash
 from .ingest import parse_ledger, parse_portfolio, parse_screener
 from .lot_engine import build_lots, derive_positions
@@ -121,6 +122,19 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
         as_of_source=slot_dates[slot]["as_of_source"])
         for slot, path in slot_paths.items()}
 
+    # CR-023 — manual theme document (authority-controlled, H2-D5/D6): load +
+    # validate (blocking on any defect — never silently repaired), and archive
+    # its exact bytes so the classification input of every run is recoverable
+    # for deterministic replay.
+    theme_doc = themes_mod.load_and_validate()
+    themes_bytes = themes_mod.document_bytes()
+    themes_record = None
+    if themes_bytes is not None:
+        themes_record = archive.capture_bytes(
+            "themes_document", Path(config.THEMES_PATH).name, themes_bytes,
+            declared_source_as_of=theme_doc.get("effective_from"),
+            as_of_source="authority_document")
+
     # 1 — ingest
     ledger_rows = parse_ledger(ledger_path)
     portfolio_rows = parse_portfolio(portfolio_path)
@@ -175,6 +189,20 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
                 "code": "PARTIAL_DATA", "instrument": p["instrument"],
                 "message": f"{p['instrument']!r} not in screener universe — valuation/quality inputs unavailable",
             })
+
+    # CR-023 / H2-D2/D3 — resolve the concentration theme per position.
+    # Manual tag wins ONLY for the concentration surface; fallback is the
+    # screener sub_sector, and it is honestly labelled as a fallback (never
+    # re-labelled as manual). fundamentals.sub_sector is untouched.
+    for p in positions:
+        manual = themes_mod.resolve_theme(theme_doc, p["instrument"], as_of)
+        if manual is not None:
+            p["theme"] = manual
+            p["theme_source"] = themes_mod.SOURCE_MANUAL
+        else:
+            f = p.get("fundamentals")
+            p["theme"] = (f or {}).get("sub_sector") or "Unknown"
+            p["theme_source"] = themes_mod.SOURCE_FALLBACK
 
     # 6 — staleness (files older than N days vs as_of)
     # CR-022 / F2-D3: data-age comes from the resolved dual-timestamp
@@ -257,6 +285,7 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
     foundation_sha = archive.store_foundation(corpus)
     payload["provenance"]["archive"] = archive.archive_identity(
         foundation_sha, policy_record["sha256"],
+        themes_sha256=themes_record["sha256"] if themes_record else None,
     )
     content = {k: v for k, v in payload.items() if k != "run_id"}
     payload["content_hash"] = content_hash(content)
@@ -270,10 +299,16 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
         rec["rows"] = row_counts[slot]
         rec["parse_status"] = "ok"
         rec["parse_warnings"] = warn_attr.get(slot, [])
+    ingest_files = [records["portfolio"], records["screener"], records["ledger"]]
+    if themes_record is not None:
+        # CR-023: the authority theme document is captured with rows=None by
+        # design (it is not a parsed data slot); keep its record informational.
+        themes_record["parse_status"] = "validated"
+        ingest_files.append(themes_record)
     archive.append_ingest(
         run_id=run_id, run_as_of=as_of.isoformat(),
         input_hash=payload["content_hash"],
-        files=[records["portfolio"], records["screener"], records["ledger"]],
+        files=ingest_files,
         foundation_sha256=foundation_sha,
         policy_sha256=policy_record["sha256"],
         policy_version=policy.get("policy_version"),
