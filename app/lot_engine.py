@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from .ingest import IngestError
 from .normalize import parse_date
+from .symbols import build_portfolio_ledger_link
 
 
 def build_lots(ledger_rows, as_of, ltcg_period_days=365, inferred_notes=None):
@@ -58,11 +59,23 @@ def build_lots(ledger_rows, as_of, ltcg_period_days=365, inferred_notes=None):
     return lots
 
 
-def derive_positions(portfolio_rows, lots, tickers, screener_by_ticker, policy):
+def derive_positions(portfolio_rows, lots, tickers, screener_by_ticker, policy, link=None):
     """Roll lots up into positions, carrying portfolio-file fields through.
 
     `tickers`: name → ticker (or None). `screener_by_ticker`: ticker → screener row.
+
+    CR-006: the position↔lots identity join uses the shared deterministic
+    Portfolio↔Ledger link (exact match first, canonical 1↔1, collisions fail
+    closed). When not supplied by the caller it is built here from the same
+    raw names. Raw names are preserved: positions keep Portfolio names, lots
+    keep Ledger names.
     """
+    if link is None:
+        link = build_portfolio_ledger_link(
+            [p.get("instrument") for p in portfolio_rows],
+            [l.get("instrument") for l in lots],
+        )
+    p2l = link["portfolio_to_ledger"]
     lots_by_name = {}
     for lot in lots:
         lots_by_name.setdefault(lot["instrument"], []).append(lot)
@@ -90,7 +103,8 @@ def derive_positions(portfolio_rows, lots, tickers, screener_by_ticker, policy):
             )
     for p in portfolio_rows:
         name = p["instrument"]
-        name_lots = lots_by_name.get(name, [])
+        ledger_name = p2l.get(name)
+        name_lots = lots_by_name.get(ledger_name, []) if ledger_name is not None else []
         ticker = tickers.get(name)
         screener = screener_by_ticker.get(ticker) if ticker else None
         first = min((l["trade_date"] for l in name_lots), default=None)

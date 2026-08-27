@@ -28,6 +28,7 @@ from .scoring import (
     technical_regime,
     valuation_stretch,
 )
+from .symbols import build_portfolio_ledger_link
 from .trim import trim_s, trim_v
 
 PRIORITY = {"EXIT": 0, "TRIM": 1, "HARVEST": 2}
@@ -281,9 +282,24 @@ def decide_all(foundation, policy_overrides=None, hysteresis=None, apply_hystere
     policy = _merge_policy(load_policy(), policy_overrides)
     as_of = date.fromisoformat(foundation["as_of"])
     positions = foundation["positions"]
+    # CR-006: rebuild the deterministic Portfolio↔Ledger identity link from the
+    # preserved raw names in the foundation payload — the same shared builder
+    # used by reconcile()/derive_positions(), so the join is identical.
+    link = build_portfolio_ledger_link(
+        [p.get("instrument") for p in positions],
+        [l.get("instrument") for l in foundation["lots"]],
+    )
+    p2l = link["portfolio_to_ledger"]
     lots_by = {}
     for lot in foundation["lots"]:
         lots_by.setdefault(lot["instrument"], []).append(lot)
+    # Expose canonically linked lots under their Portfolio name as well, so
+    # consumers keyed by position name (e.g. tax.rank_candidates) use the same
+    # identity link. Exact matches already share one key; only canonical links
+    # with differing raw names need an alias entry.
+    for p_name, l_name in p2l.items():
+        if p_name != l_name and l_name in lots_by:
+            lots_by[p_name] = lots_by[l_name]
     total_value = sum(p["current_value"] for p in positions)
     blocked = {
         i.get("instrument") for i in foundation["reconciliation"]["issues"]
@@ -295,11 +311,14 @@ def decide_all(foundation, policy_overrides=None, hysteresis=None, apply_hystere
         for inst, st in history.items():
             hv.seed(inst, st.get("decision"), st.get("composite_score"), st.get("as_of"))
 
-    holdings = [
-        decide_instrument(pos, lots_by.get(pos["instrument"], []), policy, total_value, as_of,
-                          hv, stale_files, blocked, apply_hysteresis)
-        for pos in positions
-    ]
+    holdings = []
+    for pos in positions:
+        ledger_name = p2l.get(pos["instrument"])
+        pos_lots = lots_by.get(ledger_name, []) if ledger_name is not None else []
+        holdings.append(
+            decide_instrument(pos, pos_lots, policy, total_value, as_of,
+                              hv, stale_files, blocked, apply_hysteresis)
+        )
 
     dist = {}
     for h in holdings:

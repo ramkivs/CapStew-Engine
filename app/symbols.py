@@ -3,6 +3,12 @@
 CR-019 hardens the join path without changing methodology: exact configured
 symbols still win, controlled aliases are explicit, normalized screener-name
 fallback is allowed only when unique, and ambiguous/unknown inputs fail closed.
+
+CR-006 adds the G0 Portfolio↔Ledger identity link: the existing (frozen)
+canonical_name_key() is reused as a lookup-only join key. Exact raw-name
+matches are consumed first; canonical links are made only when one distinct
+name exists on each side of a key; every canonical collision fails closed.
+Raw source names are never rewritten — canonical identity is internal only.
 """
 from __future__ import annotations
 
@@ -63,6 +69,88 @@ def canonical_name_key(value: str | None) -> str:
     while tokens and tokens[-1] in _LEGAL_SUFFIXES:
         tokens.pop()
     return "".join(tokens)
+
+
+def build_portfolio_ledger_link(portfolio_names, ledger_names):
+    """CR-006: deterministic Portfolio↔Ledger G0 identity link (lookup only).
+
+    The existing canonical_name_key() (algorithm frozen — NOT modified by
+    CR-006) is used as the join identity between the raw Instrument strings
+    of the Portfolio/XIRR export and the Raw Trade Ledger:
+
+    A. Exact raw-name equality links first. Exact matches are never routed
+       through canonical-ambiguity logic.
+    B. Among the remaining names, a canonical key links only when it has
+       exactly 1 distinct Portfolio name AND 1 distinct Ledger name.
+    C. Any canonical key with >1 distinct name on either side FAILS CLOSED:
+       no name under that key is linked at all (no first-match, no scoring,
+       no fuzzy selection of any kind).
+    D. Names whose canonical key is empty never link canonically (fail
+       closed; same convention as build_screener_indexes).
+
+    Raw source names are preserved verbatim everywhere; the link is purely
+    an internal lookup. The same inputs always produce the same link.
+
+    Returns a dict:
+      "portfolio_to_ledger":      {portfolio_raw_name: ledger_raw_name}
+      "ledger_to_portfolio":      {ledger_raw_name: portfolio_raw_name}
+      "collisions":               {canonical_key: {"portfolio": (raw names,),
+                                                   "ledger": (raw names,)}}
+      "collision_portfolio_names": set of collision-involved portfolio names
+      "collision_ledger_names":    set of collision-involved ledger names
+    """
+    p_names = {n for n in portfolio_names if n is not None}
+    l_names = {n for n in ledger_names if n is not None}
+    p2l: dict[str, str] = {}
+    l2p: dict[str, str] = {}
+
+    # A. Exact raw-name matches first.
+    exact = p_names & l_names
+    for n in exact:
+        p2l[n] = n
+        l2p[n] = n
+    p_remaining = p_names - exact
+    l_remaining = l_names - exact
+
+    # B/C. Canonical 1↔1 link; every ambiguous key fails closed.
+    p_by_key: dict[str, set] = {}
+    for n in p_remaining:
+        key = canonical_name_key(n)
+        if key:
+            p_by_key.setdefault(key, set()).add(n)
+    l_by_key: dict[str, set] = {}
+    for n in l_remaining:
+        key = canonical_name_key(n)
+        if key:
+            l_by_key.setdefault(key, set()).add(n)
+
+    collisions: dict[str, dict] = {}
+    for key in sorted(set(p_by_key) | set(l_by_key)):  # sorted → deterministic
+        pset = p_by_key.get(key, set())
+        lset = l_by_key.get(key, set())
+        if len(pset) > 1 or len(lset) > 1:
+            collisions[key] = {
+                "portfolio": tuple(sorted(pset)),
+                "ledger": tuple(sorted(lset)),
+            }
+            continue
+        if pset and lset:
+            p_raw = next(iter(pset))
+            l_raw = next(iter(lset))
+            p2l[p_raw] = l_raw
+            l2p[l_raw] = p_raw
+
+    return {
+        "portfolio_to_ledger": p2l,
+        "ledger_to_portfolio": l2p,
+        "collisions": collisions,
+        "collision_portfolio_names": {
+            n for d in collisions.values() for n in d["portfolio"]
+        },
+        "collision_ledger_names": {
+            n for d in collisions.values() for n in d["ledger"]
+        },
+    }
 
 
 def _alias_items(alias_map=None):
