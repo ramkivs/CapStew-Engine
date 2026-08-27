@@ -210,6 +210,43 @@ def _validate_provenance(value: Any, path: str, errors: list[str]) -> None:
         if _is_mapping(source):
             _string(source.get("as_of"), f"{spath}.as_of", errors)
             _number(source.get("days_behind"), f"{spath}.days_behind", errors)
+            # CR-022 / F2-D3 (additive, optional): dual-timestamp labels.
+            if "as_of_source" in source:
+                _string(source.get("as_of_source"), f"{spath}.as_of_source", errors)
+            if "declared_source_as_of" in source:
+                _string(source.get("declared_source_as_of"), f"{spath}.declared_source_as_of",
+                        errors, nullable=True)
+    # CR-022 / F2-D4 (additive, optional): snapshot-archive identity block.
+    if "archive" in value:
+        _validate_archive_provenance(value.get("archive"), f"{path}.archive", errors)
+
+
+def _sha256_hex(value: Any, path: str, errors: list[str]) -> None:
+    if not (isinstance(value, str) and len(value) == 64
+            and all(c in "0123456789abcdef" for c in value)):
+        _add(errors, path, "expected 64-char lowercase hex SHA-256")
+
+
+def _validate_archive_provenance(value: Any, path: str, errors: list[str]) -> None:
+    if value is None:
+        return  # legacy foundations carry no archive identity
+    _require(value, path, ("archive_version", "manifest",
+                           "foundation_sha256", "policy_sha256"), errors)
+    if not _is_mapping(value):
+        return
+    _integer(value.get("archive_version"), f"{path}.archive_version", errors)
+    _string(value.get("manifest"), f"{path}.manifest", errors)
+    # raw_sha256 (per-file received-byte hashes) is optional forward-compat:
+    # shipped payloads identify raw evidence via the manifest (run_id linkage).
+    if "raw_sha256" in value:
+        raw = value.get("raw_sha256")
+        if not _is_mapping(raw):
+            _add(errors, f"{path}.raw_sha256", "expected object")
+        else:
+            for slot, sha in raw.items():
+                _sha256_hex(sha, f"{path}.raw_sha256.{slot}", errors)
+    _sha256_hex(value.get("foundation_sha256"), f"{path}.foundation_sha256", errors)
+    _sha256_hex(value.get("policy_sha256"), f"{path}.policy_sha256", errors)
 
 
 def _validate_portfolio_summary(value: Any, path: str, errors: list[str]) -> None:

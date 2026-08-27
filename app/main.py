@@ -8,15 +8,16 @@ derived from the previously PERSISTED run — never process memory — so decisi
 survive restart (audit item B). /what-if never persists and never mutates policy.
 """
 import tempfile
+from datetime import date
 from pathlib import Path
 
 import yaml
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from . import config
+from . import archive, config
 from .ingest import IngestError, parse_ledger, parse_portfolio, parse_screener, parse_sold
-from .pipeline import decide_on_foundation, run_foundation
+from .pipeline import decide_on_foundation, resolve_slot_as_of, run_foundation
 from .schema import DecisionPayloadValidationError, validate_decision_payload
 from .store import RunStore
 
@@ -51,6 +52,31 @@ def _save(upload: UploadFile, dirpath: Path) -> Path:
     dest = dirpath / upload.filename
     dest.write_bytes(upload.file.read())
     return dest
+
+
+def _save_and_capture(slot: str, upload: UploadFile, dirpath: Path) -> Path:
+    """CR-022 ingestion hook: archive the exact received bytes BEFORE any parse.
+
+    The blob capture is content-addressed and idempotent; the parse-dependent
+    manifest record is finalized later by the pipeline/manifest appenders.
+    """
+    dest = _save(upload, dirpath)
+    archive.capture_file(slot, dest)
+    return dest
+
+
+def _parse_declared(slot: str, value: str | None) -> str | None:
+    """Explicit declared source-date (F2-D3). Invalid dates are rejected, never
+    silently coerced."""
+    if value in (None, ""):
+        return None
+    try:
+        date.fromisoformat(value.strip())
+    except ValueError:
+        _api_error(400, "IMPORT_ERROR",
+                   f"{value!r}: declared {slot} as_of must be YYYY-MM-DD",
+                   stage=f"declared_as_of:{slot}")
+    return value.strip()
 
 
 def _api_error(status: int, code: str, message: str, *, stage: str | None = None,
@@ -130,17 +156,24 @@ def ingest_endpoint(
     portfolio: UploadFile = File(...),
     screener: UploadFile = File(...),
     ledger: UploadFile = File(...),
+    # CR-022 / F2-D3: optional explicit declared source dates (YYYY-MM-DD).
+    portfolio_as_of: str | None = Form(default=None),
+    screener_as_of: str | None = Form(default=None),
+    ledger_as_of: str | None = Form(default=None),
 ):
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        p = _save(portfolio, tmp)
-        s = _save(screener, tmp)
-        l = _save(ledger, tmp)
+        p = _save_and_capture("portfolio", portfolio, tmp)
+        s = _save_and_capture("screener", screener, tmp)
+        l = _save_and_capture("ledger", ledger, tmp)
+        declared = {slot: _parse_declared(slot, v) for slot, v in
+                    (("portfolio", portfolio_as_of), ("screener", screener_as_of),
+                     ("ledger", ledger_as_of))}
         _precheck("portfolio", portfolio, p, parse_portfolio)
         _precheck("screener", screener, s, parse_screener)
         _precheck("ledger", ledger, l, parse_ledger)
         try:
-            payload = run_foundation(p, s, l)
+            payload = run_foundation(p, s, l, declared_as_of=declared)
         except Exception as exc:
             _engine_error("ingest", exc)
         _LAST_FOUNDATION.clear()
@@ -166,24 +199,32 @@ def run_endpoint(
     screener: UploadFile = File(...),
     ledger: UploadFile = File(...),
     sold: UploadFile | None = File(default=None),
+    # CR-022 / F2-D3: optional explicit declared source dates (YYYY-MM-DD).
+    portfolio_as_of: str | None = Form(default=None),
+    screener_as_of: str | None = Form(default=None),
+    ledger_as_of: str | None = Form(default=None),
+    sold_as_of: str | None = Form(default=None),
 ):
     from .pipeline import compute_tax_year
     store = None
     try:
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
-            p = _save(portfolio, tmp)
-            s = _save(screener, tmp)
-            l = _save(ledger, tmp)
+            p = _save_and_capture("portfolio", portfolio, tmp)
+            s = _save_and_capture("screener", screener, tmp)
+            l = _save_and_capture("ledger", ledger, tmp)
+            declared = {slot: _parse_declared(slot, v) for slot, v in
+                        (("portfolio", portfolio_as_of), ("screener", screener_as_of),
+                         ("ledger", ledger_as_of))}
             _precheck("portfolio", portfolio, p, parse_portfolio)
             _precheck("screener", screener, s, parse_screener)
             _precheck("ledger", ledger, l, parse_ledger)
-            foundation = run_foundation(p, s, l)
+            foundation = run_foundation(p, s, l, declared_as_of=declared)
             store = RunStore()
             history = store.previous_holdings()          # persisted prior run, not memory
             payload = decide_on_foundation(foundation, apply_hysteresis=True, history=history)
             if sold is not None:
-                sp = _save(sold, tmp)
+                sp = _save_and_capture("sold", sold, tmp)
                 _precheck("sold", sold, sp, parse_sold)
                 tax = compute_tax_year(foundation, sp)
                 payload["tax_year"] = tax
@@ -195,9 +236,26 @@ def run_endpoint(
                     "stcl_harvestable": tax["summary"]["gross"]["stcl"],
                     "note": "realised from sold.csv (FIFO-matched) + unrealised split of open book",
                 })
+                # CR-022: sold slot joins the run's archive lineage (F2-D2).
+                sold_dates = resolve_slot_as_of(
+                    "sold", sp, {"sold": _parse_declared("sold", sold_as_of)})
+                sold_record = archive.capture_file(
+                    "sold", sp,
+                    declared_source_as_of=sold_dates["declared_source_as_of"],
+                    as_of_source=sold_dates["as_of_source"])
+                sold_record["rows"] = len(parse_sold(sp))
+                sold_record["parse_status"] = "ok"
+                archive.append_slot(run_id=payload["run_id"],
+                                    file_record=sold_record,
+                                    policy_version=payload["policy_version"])
                 _LAST_TAX.clear(); _LAST_TAX.update(tax)
             validate_decision_payload(payload)
             store.save_run(payload, validate=True)
+            # CR-022 / F2-D2: link the persisted decision run to its evidence.
+            archive.append_run_link(run_id=payload["run_id"],
+                                    input_hash=payload["input_hash"],
+                                    decision_content_hash=payload["content_hash"],
+                                    policy_version=payload["policy_version"])
             _LAST_FOUNDATION.clear(); _LAST_FOUNDATION.update(foundation)
             return payload
     except DecisionPayloadValidationError as exc:
@@ -247,6 +305,11 @@ def run_sample_endpoint():
             _LAST_TAX.clear(); _LAST_TAX.update(tax)
         validate_decision_payload(payload)
         store.save_run(payload, validate=True)
+        # CR-022 / F2-D2: link the persisted decision run to its evidence.
+        archive.append_run_link(run_id=payload["run_id"],
+                                input_hash=payload["input_hash"],
+                                decision_content_hash=payload["content_hash"],
+                                policy_version=payload["policy_version"])
         _LAST_FOUNDATION.clear(); _LAST_FOUNDATION.update(foundation)
         return payload
     except DecisionPayloadValidationError as exc:

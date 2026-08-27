@@ -3,12 +3,23 @@
 This is the contract-tested output boundary. It deliberately contains NO
 decision logic (gates/scoring/trim are Phase 2); the foundation payload is
 what Phase 2 consumes and what the UI will eventually render.
+
+CR-022 (F2-D1…D10): run_foundation additionally archives the raw input bytes,
+the policy document snapshot and the canonical normalized foundation corpus
+into the content-addressed snapshot archive (data/archive, gitignored) and
+embeds a deterministic archive identity in payload provenance. Archiving
+alters no computed value; separately, F2-D3 dual-timestamp resolution
+introduces caller-declared data-age semantics (explicit/filename dates win
+over the labelled mtime fallback), with staleness thresholds unchanged.
+decide_all() remains a pure function of its inputs.
 """
+import re
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from pathlib import Path
 
-from . import config
+from . import archive, config
 from .determinism import content_hash
 from .ingest import parse_ledger, parse_portfolio, parse_screener
 from .lot_engine import build_lots, derive_positions
@@ -29,12 +40,86 @@ def _file_as_of(path):
     return _dt.fromtimestamp(mtime).strftime("%Y-%m-%d")
 
 
-def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_id=None):
+# CR-022 / F2-D3 — declared source-date extraction from filenames.
+# Deterministic, documented conventions only (no fuzzy/heuristic inference):
+#   YMD:  ..._2026-08-26... or ..._2026_08_26...
+#   DMY:  ..._26-08-2026... or ..._26_08_2026...   (day-first export convention)
+_YMD_RE = re.compile(r"(?<!\d)((?:19|20)\d{2})[-_](0[1-9]|1[0-2])[-_](0[1-9]|[12]\d|3[01])(?!\d)")
+_DMY_RE = re.compile(r"(?<!\d)(0[1-9]|[12]\d|3[01])[-_](0[1-9]|1[0-2])[-_]((?:19|20)\d{2})(?!\d)")
+
+
+def declared_as_of_from_filename(filename: str):
+    """Return a date declared by the filename, or None when none is present."""
+    m = _YMD_RE.search(filename)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            return None
+    m = _DMY_RE.search(filename)
+    if m:
+        try:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            return None
+    return None
+
+
+def resolve_slot_as_of(slot: str, path, declared: dict | None) -> dict:
+    """F2-D3 dual-timestamp resolution for one source slot.
+
+    Precedence: explicit user declaration > filename-declared date >
+    upload-copy mtime (labelled fallback, never silently authoritative).
+    Returns {"as_of": iso, "declared_source_as_of": iso|None, "as_of_source": ...}.
+    Staleness thresholds are untouched; only the data-age INPUT changes.
+    """
+    declared_date = None
+    source = None
+    if declared and declared.get(slot):
+        raw = declared[slot]
+        declared_date = raw if isinstance(raw, date) else date.fromisoformat(str(raw))
+        source = "declared_explicit"
+    if declared_date is None:
+        declared_date = declared_as_of_from_filename(Path(path).name)
+        if declared_date is not None:
+            source = "declared_filename"
+    if declared_date is None:
+        return {"as_of": _file_as_of(path), "declared_source_as_of": None,
+                "as_of_source": "fallback_upload_mtime"}
+    return {"as_of": declared_date.isoformat(),
+            "declared_source_as_of": declared_date.isoformat(),
+            "as_of_source": source}
+
+
+def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_id=None,
+                   declared_as_of=None):
+    """Foundation payload for one ingestion event. Also archives (CR-022):
+
+    raw bytes of all three slots + policy document snapshot are captured
+    BEFORE parsing (idempotent content-addressed blobs), and one append-only
+    manifest entry records the full provenance/linkage for the event.
+    ``declared_as_of``: optional {slot: "YYYY-MM-DD"} explicit declarations
+    (F2-D3 precedence: explicit > filename > labelled mtime fallback).
+    """
     policy = load_policy()
     ltcg_days = get_ltcg_period_days(policy)
     tolerance = Decimal(str(get_recon_tolerance(policy)))
     as_of = as_of or date.today()
     run_id = run_id or f"run_{datetime.now().strftime('%Y%m%dT%H%M%S')}_{uuid.uuid4().hex[:6]}"
+
+    # CR-022 — snapshot archive hook: capture the exact received bytes and the
+    # policy document BEFORE any parsing/normalization. Content-addressed and
+    # idempotent: re-capturing identical bytes never mutates existing blobs.
+    policy_record = archive.capture_policy()
+    slot_paths = {"portfolio": portfolio_path, "screener": screener_path,
+                  "ledger": ledger_path}
+    slot_dates = {slot: resolve_slot_as_of(slot, path, declared_as_of)
+                  for slot, path in slot_paths.items()}
+    records = {slot: archive.capture_file(
+        slot, path,
+        declared_source_as_of=slot_dates[slot]["declared_source_as_of"],
+        as_of_source=slot_dates[slot]["as_of_source"])
+        for slot, path in slot_paths.items()}
 
     # 1 — ingest
     ledger_rows = parse_ledger(ledger_path)
@@ -92,10 +177,13 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
             })
 
     # 6 — staleness (files older than N days vs as_of)
+    # CR-022 / F2-D3: data-age comes from the resolved dual-timestamp
+    # semantics (declared if available, else labelled mtime fallback).
+    # Staleness THRESHOLDS are unchanged by CR-022.
     data_as_of = {
-        "portfolio": _file_as_of(portfolio_path),
-        "screener": _file_as_of(screener_path),
-        "ledger": _file_as_of(ledger_path),
+        "portfolio": slot_dates["portfolio"]["as_of"],
+        "screener": slot_dates["screener"]["as_of"],
+        "ledger": slot_dates["ledger"]["as_of"],
     }
     stale_files = []
     for key, file_as_of in data_as_of.items():
@@ -120,8 +208,10 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
             "calculation_version": config.CALCULATION_VERSION,
             "policy_version": policy.get("policy_version"),
             "sources": {
-                key: {"as_of": file_as_of}
-                for key, file_as_of in data_as_of.items() if key != "stale_files"
+                key: {"as_of": slot_dates[key]["as_of"],
+                      "declared_source_as_of": slot_dates[key]["declared_source_as_of"],
+                      "as_of_source": slot_dates[key]["as_of_source"]}
+                for key in ("portfolio", "screener", "ledger")
             },
         },
         "data_as_of": data_as_of,
@@ -154,16 +244,83 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
         ],
         "warnings": warnings,
     }
+
+    # CR-022 — archive the canonical normalized FoundationPayload corpus
+    # (F2-D5). The corpus deliberately contains NO hashes (engine input only),
+    # so foundation_sha256 can feed the payload archive block with no
+    # self-reference cycle; the payload content hash then covers the archive
+    # block exactly like every other field ("sha256 of payload minus run_id").
+    corpus = {
+        "archive_blob_kind": "foundation",
+        **{k: v for k, v in payload.items() if k != "run_id"},
+    }
+    foundation_sha = archive.store_foundation(corpus)
+    payload["provenance"]["archive"] = archive.archive_identity(
+        foundation_sha, policy_record["sha256"],
+    )
     content = {k: v for k, v in payload.items() if k != "run_id"}
     payload["content_hash"] = content_hash(content)
+
+    # CR-022 — finalize per-slot records and append the ingest manifest entry
+    # (linkage: run_id ↔ raw blobs ↔ normalized foundation ↔ policy snapshot).
+    row_counts = {"portfolio": len(portfolio_rows), "screener": len(screener_rows),
+                  "ledger": len(ledger_rows)}
+    warn_attr = _attribute_warning_codes(warnings)
+    for slot, rec in records.items():
+        rec["rows"] = row_counts[slot]
+        rec["parse_status"] = "ok"
+        rec["parse_warnings"] = warn_attr.get(slot, [])
+    archive.append_ingest(
+        run_id=run_id, run_as_of=as_of.isoformat(),
+        input_hash=payload["content_hash"],
+        files=[records["portfolio"], records["screener"], records["ledger"]],
+        foundation_sha256=foundation_sha,
+        policy_sha256=policy_record["sha256"],
+        policy_version=policy.get("policy_version"),
+    )
     return payload
 
 
+def _attribute_warning_codes(warnings):
+    """Documented per-slot attribution of engine warning codes for archive
+    records (bookkeeping only — no new warnings are raised).
+
+    STALENESS:       the slot named in the warning message.
+    DATE_FORMAT_INFERRED: ledger (datetimes are normalized from ledger rows).
+    SYMBOL_UNMATCHED: portfolio + ledger (raw names originate in either).
+    PARTIAL_DATA:    portfolio (positions roll up from the portfolio file).
+    Everything else (G0 recon codes): portfolio + ledger.
+    """
+    attr = {slot: [] for slot in ("portfolio", "screener", "ledger")}
+
+    def add(slot, code):
+        if code not in attr[slot]:
+            attr[slot].append(code)
+
+    for w in warnings:
+        code = w["code"]
+        if code == "DATE_FORMAT_INFERRED":
+            add("ledger", code)
+        elif code == "STALENESS":
+            for slot in ("portfolio", "screener", "ledger"):
+                if w.get("message", "").startswith(f"{slot} is "):
+                    add(slot, code)
+        elif code in ("SYMBOL_UNMATCHED", "PARTIAL_DATA"):
+            add("portfolio", code)
+            if code == "SYMBOL_UNMATCHED":
+                add("ledger", code)
+        else:
+            add("portfolio", code)
+            add("ledger", code)
+    return attr
+
+
 def run_engine(portfolio_path, screener_path, ledger_path, as_of=None, run_id=None,
-               policy_overrides=None, hysteresis=None):
+               policy_overrides=None, hysteresis=None, declared_as_of=None):
     """Foundation + Phase 2 decision engine → DecisionPayload."""
     foundation = run_foundation(portfolio_path, screener_path, ledger_path,
-                                as_of=as_of, run_id=run_id)
+                                as_of=as_of, run_id=run_id,
+                                declared_as_of=declared_as_of)
     return decide_on_foundation(foundation, policy_overrides=policy_overrides,
                                 hysteresis=hysteresis, apply_hysteresis=True)
 

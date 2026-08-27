@@ -372,17 +372,29 @@ def decide_all(foundation, policy_overrides=None, hysteresis=None, apply_hystere
         "engine_version": config.ENGINE_VERSION,
         "policy_version": policy.get("policy_version"),
         "input_hash": foundation["content_hash"],
+        # NOTE (CR-022 discovery, reported not fixed): the "provenance" key is
+        # duplicated in this dict literal (pre-existing latent defect; Python
+        # keeps the second occurrence). Both occurrences are updated
+        # IDENTICALLY so behavior cannot depend on which wins; removing the
+        # duplication is left to a separate hygiene CR.
         "provenance": {
             "engine_version": config.ENGINE_VERSION,
             "normalization_version": config.NORMALIZATION_VERSION,
             "calculation_version": config.CALCULATION_VERSION,
             "policy_version": policy.get("policy_version"),
             "sources": {
+                # CR-022 / F2-D3: declared-source-date labels pass through from
+                # the foundation payload; legacy foundations default to the
+                # historical mtime semantics, labelled as such.
                 key: {"as_of": value,
-                      "days_behind": (as_of - date.fromisoformat(value)).days}
+                      "days_behind": (as_of - date.fromisoformat(value)).days,
+                      "declared_source_as_of": foundation.get("provenance", {}).get("sources", {}).get(key, {}).get("declared_source_as_of"),
+                      "as_of_source": foundation.get("provenance", {}).get("sources", {}).get(key, {}).get("as_of_source", "fallback_upload_mtime")}
                 for key, value in foundation.get("data_as_of", {}).items()
                 if key != "stale_files"
             },
+            # CR-022 / F2-D4: payload-visible archive identity (content-derived).
+            "archive": foundation.get("provenance", {}).get("archive"),
         },
         "provenance": {
             "engine_version": config.ENGINE_VERSION,
@@ -391,10 +403,13 @@ def decide_all(foundation, policy_overrides=None, hysteresis=None, apply_hystere
             "policy_version": policy.get("policy_version"),
             "sources": {
                 key: {"as_of": value,
-                      "days_behind": (as_of - date.fromisoformat(value)).days}
+                      "days_behind": (as_of - date.fromisoformat(value)).days,
+                      "declared_source_as_of": foundation.get("provenance", {}).get("sources", {}).get(key, {}).get("declared_source_as_of"),
+                      "as_of_source": foundation.get("provenance", {}).get("sources", {}).get(key, {}).get("as_of_source", "fallback_upload_mtime")}
                 for key, value in foundation.get("data_as_of", {}).items()
                 if key != "stale_files"
             },
+            "archive": foundation.get("provenance", {}).get("archive"),
         },
         "portfolio_summary": {
             "total_value": round(total_value, 2),

@@ -33,3 +33,25 @@ def _tmp_store(tmp_path, monkeypatch):
     import app.config as cfg
     monkeypatch.setattr(cfg, "STORE_PATH", tmp_path / "engine.db")
     yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _scratch_archive(tmp_path_factory):
+    """Session-level scratch archive root (CR-022): even session-scoped fixture
+    work (e.g. the shared `foundation` fixture) must never append to the real
+    local audit archive under data/archive."""
+    import app.config as cfg
+    root = tmp_path_factory.mktemp("cr022-suite-archive")
+    mp = pytest.MonkeyPatch()
+    mp.setattr(cfg, "ARCHIVE_ROOT", root)
+    yield root
+    mp.undo()
+
+
+@pytest.fixture(autouse=True)
+def _tmp_archive(tmp_path, monkeypatch):
+    """Isolate the CR-022 snapshot archive per test (mirrors _tmp_store): tests
+    must never append to the real local archive under data/archive."""
+    import app.config as cfg
+    monkeypatch.setattr(cfg, "ARCHIVE_ROOT", tmp_path / "archive")
+    yield

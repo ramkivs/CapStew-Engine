@@ -17,6 +17,7 @@ The authoritative documentation for Capital Steward Engine. Read order:
 | `version-provenance-rule-vp1.md` | VP-1 version-bump/provenance rule binding future engine-mutating CRs (E2E-017-PD R4). |
 | `backtest-methodology-addendum-v1.md` | CR-015 backtest methodology addendum (signed-provisional). |
 | `cr006-canonical-instrument-join.md` · `cr012a-weight-only-sensitivity.md` · `cr012b-g2-sensitivity-characterization.md` | Named-CR specification / closure records. |
+| `cr022-snapshot-archive.md` | CR-022 (EMM-F2) snapshot archiver: content-addressed input evidence store, integrity model, dual-timestamp semantics, G-04/G-05 status and real-data UAT protocol. |
 
 ## Authority chain
 
