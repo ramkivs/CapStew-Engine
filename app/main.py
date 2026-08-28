@@ -427,6 +427,67 @@ def get_themes():
     }
 
 
+# ---- CR-024 (EMM-F2) — read-only historical evidence surfaces ------------------
+# Date-indexed historical fundamentals store/query + G-04 median + G1 history
+# legs. Strictly read-only: there is deliberately NO POST/PUT/DELETE — the
+# archive is append-only and historical evidence is not user-editable.
+# G-04 is NOT ACTIVATED (peer proxy in force); G1 gate semantics unchanged.
+
+
+def _hist_as_of(as_of: str | None) -> str:
+    from . import history as hist_mod
+    resolved = as_of or hist_mod.latest_archived_as_of()
+    if resolved is None:
+        _api_error(404, "NOT_FOUND", "no archived ingest events yet", stage="history")
+    return resolved
+
+
+@app.get("/api/v1/history/fundamentals/{instrument}")
+def get_history_fundamentals(instrument: str, metric: str | None = None,
+                             start: str | None = None, end: str | None = None,
+                             as_of: str | None = None):
+    """Date-indexed historical fundamentals query — NO run_id required (F2-D1-A)."""
+    from . import history as hist_mod
+    try:
+        result = hist_mod.query_fundamentals(instrument, metric=metric, start=start,
+                                             end=end, as_of=as_of)
+    except Exception as exc:
+        _engine_error("history", exc)
+    if result["observation_count"] == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no archived observations for instrument {instrument!r}"
+                   + (f" metric {metric!r}" if metric else ""))
+    return result
+
+
+@app.get("/api/v1/history/g04/{instrument}")
+def get_history_g04(instrument: str, as_of: str | None = None):
+    """G-04 own-history PE/PB median evidence (G04-MEDIAN-METHODOLOGY-v1).
+
+    IMPLEMENTED BUT NOT ACTIVATED: production scoring remains on the
+    peer-relative proxy (G04-D9-A / F2-I5-A).
+    """
+    from . import history as hist_mod
+    try:
+        return hist_mod.pe_pb_medians(instrument, _hist_as_of(as_of))
+    except Exception as exc:
+        _engine_error("history", exc)
+
+
+@app.get("/api/v1/history/g1/{instrument}")
+def get_history_g1(instrument: str, as_of: str | None = None):
+    """G1 history legs evidence (G1-HISTORY-LEGS-METHODOLOGY-v1).
+
+    EVIDENCE ONLY: existing G1 gate behavior is unchanged (F2-I6-A / G1-D11-A).
+    """
+    from . import history as hist_mod
+    try:
+        return hist_mod.g1_legs(instrument, _hist_as_of(as_of))
+    except Exception as exc:
+        _engine_error("history", exc)
+
+
 @app.put("/api/v1/policy")
 def put_policy(body: dict):
     from .policy import POLICY_PATH, load_policy, validate_policy

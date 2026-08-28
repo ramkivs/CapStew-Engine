@@ -168,9 +168,9 @@ def test_archive_version_recorded():
     # VP-1: payload-visible provenance changed => ENGINE_VERSION bumped
     # (CR-022 0.4.0; CR-023 theme layer -> 0.5.0); calculation/normalization
     # lineage untouched (no math/normalizer change).
-    assert config.ENGINE_VERSION == "0.5.0-phase3"
-    assert payload["engine_version"] == "0.5.0-phase3"
-    assert payload["provenance"]["engine_version"] == "0.5.0-phase3"
+    assert config.ENGINE_VERSION == "0.6.0-phase3"
+    assert payload["engine_version"] == "0.6.0-phase3"
+    assert payload["provenance"]["engine_version"] == "0.6.0-phase3"
     assert config.CALCULATION_VERSION == "2.1"
     assert config.NORMALIZATION_VERSION == "1.0"
 
