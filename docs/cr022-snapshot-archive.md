@@ -1,7 +1,9 @@
 # CR-022 — Snapshot archiver / dated fundamentals store (EMM-F2)
 
-**Status:** IMPLEMENTED + VALIDATED (fixtures/synthetic only) — closure pending
-authority-side real-data UAT.
+**Status:** ~~IMPLEMENTED + VALIDATED (fixtures/synthetic only) — closure pending
+authority-side real-data UAT.~~ **CLOSED (2026-08-28).** Authority-side real-data UAT
+accepted; committed `8ea2e3d…` (CR-022); this archive is the evidence base consumed by
+CR-024. Original point-in-time header preserved via strikethrough (CR-025/S2 convention).
 **Authority gate:** F2-D1 through F2-D10 accepted verbatim from the EMM-F2
 Discovery Record. **Branch:** `arena/01a033db-capstew-engine`.
 

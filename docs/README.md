@@ -20,6 +20,8 @@ The authoritative documentation for Capital Steward Engine. Read order:
 | `cr022-snapshot-archive.md` | CR-022 (EMM-F2) snapshot archiver: content-addressed input evidence store, integrity model, dual-timestamp semantics, G-04/G-05 status and real-data UAT protocol. |
 | `cr023-manual-theme-tags.md` | CR-023 (EMM-H2/G-14) manual theme-tag layer: signed-off taxonomy, precedence/fallback/threshold dispositions, document format, replay/provenance pattern, real-data UAT protocol. |
 | `cr024-historical-fundamentals.md` | CR-024 (EMM-F2) date-indexed historical fundamentals store/query + G-04 own-history median + G1 history legs: frozen methodology lineage, five surfaced implementation conventions (C-1…C-5), activation fences, replay/provenance pattern, real-data UAT protocol. |
+| `v1.1.0-milestone-record.md` | CR-025/S3: hosted v1.1.0 milestone record — **not a certified release** (sole certified epoch remains v1.0.0). |
+| `session-register-materialization-v1.md` | CR-025/S4: session-register materialization (EMM-F5/F7/C3 — definitions not supplied by authority; carried as-is). |
 
 ## Authority chain
 

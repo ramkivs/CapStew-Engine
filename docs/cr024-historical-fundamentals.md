@@ -1,7 +1,11 @@
 # CR-024 — date-indexed historical fundamentals store/query + G-04 own-history median + G1 history legs (EMM-F2)
 
-**Status:** IMPLEMENTED + FIXTURE-VALIDATED — UNCOMMITTED/UNPUSHED; commit/push and
-closure-by-UAT are separate gates.
+**Status:** ~~IMPLEMENTED + FIXTURE-VALIDATED — UNCOMMITTED/UNPUSHED; commit/push and
+closure-by-UAT are separate gates.~~ **COMMITTED/PUSHED
+`a7f5c87c8e7d79ab60267f13c86b3670ecb0b615`; real-data Windows UAT PASS (disposition A);
+CR-024 CLOSED (2026-08-28); EMM-F2 CLOSED.** G-04 remains NOT ACTIVATED (peer proxy in
+force); G1 historical legs evidence-only; broad historical series retained as gap.
+Original point-in-time header preserved via strikethrough (CR-025/S2 convention).
 **Authority lineage:** EMM-F2 discovery → F2-D1…D9 dispositions → G-04 median
 methodology gate (**G04-MEDIAN-METHODOLOGY-v1**) → G1 history-legs definition gate
 (**G1-HISTORY-LEGS-METHODOLOGY-v1**) → EMM-F2 implementation authorization

@@ -28,9 +28,27 @@ Portfolio discipline · valuation · tax · risk.
 | v1.1.0 | lightweight tag `638890bb` + hosted GitHub Release | **RELEASE-DOCUMENTED MILESTONE — not a certified release** (E2E-013-R C1 / E2E-017-PD R1-B); no in-repo release record exists for this epoch | 176 (hosted-Release claim; not re-audited in-repo) |
 | main-current | `ffdf9cba2c7f5e479765c57f314f2cb7823d8138` | TESTED (CR-005/CR-019/CR-008/CR-012A/CR-012B merged) | 450 collected |
 | session branch | `arena/01a033db-capstew-engine` @ `e473417b75d0a60a9be7376803d4d77a867e5858` | TESTED; CR-006 REAL-DATA VERIFIED (authority-executed acceptance) | 497 collected |
+| session branch (current) | `arena/01a033db-capstew-engine` @ `a7f5c87c8e7d79ab60267f13c86b3670ecb0b615` | TESTED; lineage CR-020→CR-024; CR-023 / CR-024 / EMM-H2 / EMM-F2 **CLOSED**; E2E-013 / E2E-017 / E2E-018 matrices **ACCEPTED**; EMM-H3 methodology settled (DEC-EMM-H3-001); C-14 Themes COMPLETE-BUT-VACANT; C-4 ORV **ACCEPTED AS PASS** (R-SORT-001 open; P-07 limitation retained); `ENGINE_VERSION 0.6.0-phase3` | 571 collected |
 
 - `MANIFEST.sha256` pins the **v1.0.0 tree only** and `RELEASE-v1.md` records the **v1.0.0 release only**. Both are frozen v1.0.0 records, unchanged by design — they are not current-tree manifests.
-- Version constants (`ENGINE_VERSION`, `NORMALIZATION_VERSION`, `CALCULATION_VERSION`, `policy_version`) are currently static across epochs, so payload provenance discriminates material builds only via git SHA + test ledger until the **VP-1** rule (`docs/version-provenance-rule-vp1.md`) applies to future engine-mutating CRs.
+- Version constants (`ENGINE_VERSION`, `NORMALIZATION_VERSION`, `CALCULATION_VERSION`, `policy_version`) were static across epochs up to `e473417`; payload provenance discriminated material builds only via git SHA + test ledger until the **VP-1** rule (`docs/version-provenance-rule-vp1.md`). **VP-1 is applied since CR-022** (0.4.0 → 0.5.0 → current `ENGINE_VERSION 0.6.0-phase3`; `CALCULATION_VERSION 2.1`, `NORMALIZATION_VERSION 1.0`, `policy_version 1` unchanged — no scoring/normalize/policy-semantic change in CR-022…CR-024).
+
+### Standing open register (CR-025, 2026-08-28)
+
+| Item | State |
+|---|---|
+| G-04 own-history median | IMPLEMENTED / REAL-DATA-VERIFIED evidence path / **NOT ACTIVATED** — peer-relative proxy remains production input; activation = separate gate; archive depth ≥24/24 = data limitation, not failure |
+| G1 historical legs | evidence-only (`quality_drop` / `pledge_qoq` query); production G1 gate semantics unchanged |
+| G-05 | PARTIAL — CR-022 forward capture active; pre-CR-022 history permanently retained gap (F2-D6-A) |
+| Themes (CR-023) | **COMPLETE-BUT-VACANT** — assignments absent-by-design; population = separate authority data-entry act + commit/push gate (DEC-C14-001) |
+| ACCUMULATE (EMM-H3) | methodology **settled** — sub-state/refinement of HOLD (DEC-EMM-H3-001); production-blocked on unfrozen inputs U-1…U-6 |
+| R-SORT-001 | Decisions-table sorting — **OPEN / NOT IMPLEMENTED** (presentation-only; future UI/product authority gate) |
+| P-07 run overlay | evidence limitation retained — NOT OBSERVABLE / NOT REPLAYABLE (not promoted to PASS) |
+| Backtest harness | NOT AUTHORIZED (CR-015 addendum only) |
+| Watchlist / D-14 hurdles | not live (V1.1-A C-dispositions; D-14 signed-provisional) |
+| Broad historical series | retained gap (F2-D3-B) |
+| v1.1.0 epoch | milestone, **not certified** — see `docs/v1.1.0-milestone-record.md` |
+| EMM-F5 / EMM-F7 / EMM-C3 | session-register — see `docs/session-register-materialization-v1.md` |
 
 ## Pipeline
 
@@ -65,12 +83,12 @@ app/
   trim.py        constrained trim sizing (TRIM-S / TRIM-V, FIFO prefix)
   behavior.py    averaging-into-losses guardrail
   decision.py    decide_instrument() / decide_all() → DecisionPayload
-  main.py        FastAPI endpoints (14: health · reconcile · ingest · lots · run · run-sample · what-if · decisions · holdings · runs · run diff · tax-tracker · policy GET/PUT)
+  main.py        FastAPI endpoints (19 route registrations: health · reconcile · ingest · lots · run · run-sample · what-if · decisions · holdings · runs · run diff · tax-tracker · themes · history fundamentals/g04/g1 · policy GET/PUT)
   schema.py      CR-001 runtime DecisionPayload validator
   symbols.py     CR-006 canonical instrument identity (deterministic name-key join; no fuzzy/ticker heuristics)
 policy/policy.yaml        D-01…D-15 (signed in Freeze §14; operational serialization only)
 fixtures/                 generated CSV fixtures (golden trilogy embedded) + sold_sample.csv
-tests/                    backend suites — 497 collected at session epoch `e473417` (unit · gates · scoring · confidence · trim · hysteresis · decision · audit · policy · tax · diff · API · schema · determinism · import_errors · golden fixtures · CR-005/006/007/009/012A/012B/018/019); 126 at the Phase-3 build point
+tests/                    backend suites — 571 collected at epoch `a7f5c87` (unit · gates · scoring · confidence · trim · hysteresis · decision · audit · policy · tax · diff · API · schema · determinism · import_errors · golden fixtures · CR-005/006/007/009/012A/012B/018/019 · CR-022/023/024); 497 at `e473417`; 126 at the Phase-3 build point
 scripts/hash_engine.py    cross-process determinism probe
 ```
 
@@ -79,7 +97,7 @@ scripts/hash_engine.py    cross-process determinism probe
 ```bash
 pip install -r requirements.txt
 python fixtures/generate_fixtures.py fixtures   # regenerate fixtures
-pytest -q                                       # suite size is epoch-stamped (see epochs table): 497 collected at e473417
+pytest -q                                       # suite size is epoch-stamped (see epochs table): 571 collected at a7f5c87
 cd frontend && npx tsc --noEmit                 # frontend type-check clean
 uvicorn app.main:app --host 0.0.0.0 --port 8000 # API
 ```
@@ -101,6 +119,10 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 # API
 | GET  | `/api/v1/runs/{run_id}/diff` | diff a run against its predecessor (decision/score/gate changes, added/removed, distribution) |
 | GET  | `/api/v1/tax-tracker?fy=` | realised tax year: gross/net, S.74 set-off, exemption headroom, carry-forward, open-position split |
 | GET/PUT | `/api/v1/policy` | read / validate+commit policy (versioned; invalid PUT → 422, file untouched) |
+| GET  | `/api/v1/themes` | CR-023 authority theme-mapping document (read-only; no editor — H2-D5-A) |
+| GET  | `/api/v1/history/fundamentals/{instrument}` | CR-024 date-indexed historical fundamentals observations (read-only; 404 when none) |
+| GET  | `/api/v1/history/g04/{instrument}` | CR-024 G-04 own-history PE/PB median evidence (frozen `G04-MEDIAN-METHODOLOGY-v1`) — evidence-only; **NOT ACTIVATED** (peer proxy in force) |
+| GET  | `/api/v1/history/g1/{instrument}` | CR-024 G1 history legs (`quality_drop` / `pledge_qoq`) evidence (frozen `G1-HISTORY-LEGS-METHODOLOGY-v1`) — evidence-only; G1 gate semantics unchanged |
 
 ## Golden precedence fixtures (Freeze §11)
 
@@ -137,14 +159,16 @@ through the Vite dev-server proxy (`/api` → `http://127.0.0.1:8000`) using rel
 
 ```
 frontend/src/
-  api/            client.ts · engine.ts · tax.ts · history.ts · policy.ts   ← UI-1 gate
+  api/            client.ts · engine.ts · tax.ts · history.ts · policy.ts · themes.ts   ← UI-1 gate
   types.ts        DecisionPayload / Holding / TaxYear / Policy / RunDiff types
   components/     Header · InputsView · DecisionsView · HoldingDetail ·
                   WeightsView · TaxView · HistoryView · ActivityLogPanel · ui primitives
   utils/          exportDecisions.ts (client-side export of the authoritative payload)
   App.tsx         tab shell + state (+ sold-ledger upload wiring)
-                  (ActivityLogPanel / exportDecisions / HoldingDetail are post-v1.0.0
-                  additions — IMPLEMENTED, pending E2E-018 observed-rendered verification)
+                  (ActivityLogPanel / exportDecisions / HoldingDetail / themes readout are post-v1.0.0
+                  additions — IMPLEMENTED. C-4 E2E-018 ORV (2026-08-28): **ACCEPTED AS PASS**;
+                  residuals recorded: **R-SORT-001** Decisions-table sorting OPEN / NOT IMPLEMENTED;
+                  P-07 run overlay evidence limitation retained — NOT OBSERVABLE / NOT REPLAYABLE)
 ```
 
 **UI gates delivered in order:**

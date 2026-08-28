@@ -1,7 +1,11 @@
 # CR-023 — Manual theme-tag layer (EMM-H2 / G-14)
 
-**Status:** IMPLEMENTED + FIXTURE-VALIDATED — closure pending authority-side
-real-data UAT.
+**Status:** ~~IMPLEMENTED + FIXTURE-VALIDATED — closure pending authority-side
+real-data UAT.~~ **CLOSED (2026-08-28).** Real-data Windows UAT PASS accepted;
+committed `9e3bd12a…`; EMM-H2 CLOSED (disposition A). Themes capability =
+**COMPLETE-BUT-VACANT** (DEC-C14-001): taxonomy signed off; assignments absent-by-design
+pending the separate authority tag-pass/data-entry act. Original point-in-time header
+preserved via strikethrough (CR-025/S2 convention).
 **Authority chain:** EMM-H2 discovery → H2-D1…D10 dispositions (all ACCEPTED)
 → CR-023 taxonomy sign-off (HARDCHECKPOINT, 2026-08-28) → implementation gate.
 **Branch:** `arena/01a033db-capstew-engine`.
