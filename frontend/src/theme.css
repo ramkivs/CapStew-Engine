@@ -64,6 +64,20 @@ th { color: var(--dim); font-weight: 600; text-align: left; padding: 8px 10px;
 td { padding: 9px 10px; border-bottom: 1px solid #1a2233; white-space: nowrap; font-family: var(--mono); }
 tr.row { cursor: pointer; transition: .12s; }
 tr.row:hover { background: #141c2e; }
+
+/* CR-026 (R-SORT-001): presentation-only sortable holdings headers.
+   Freeze §7 [FROZEN] permits client-side sorting; these rules style the
+   affordance and the ascending/descending indicator only. */
+.th-sort { background: none; border: 0; padding: 0; margin: 0; font: inherit;
+  color: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px; }
+.th-sort:hover { color: var(--text); text-decoration: underline; }
+.th-sort:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 2px; }
+.th-sort .sort-ind { font-size: 9px; line-height: 1; color: var(--dim);
+  min-width: 9px; text-align: center; }
+.th-sort.active { color: var(--blue); }
+.th-sort.active .sort-ind { color: var(--blue); }
+
 .num { text-align: right; }
 .tick { color: var(--blue); font-weight: 700; }
 .up { color: var(--green); } .down { color: var(--red); }
