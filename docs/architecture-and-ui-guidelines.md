@@ -618,7 +618,7 @@ signed/provisional until separately authorized.
 | Slider drag ≥ 60 fps | Optimistic shimmer; authoritative recompute via debounced `/what-if` (50 ms) — no client-side recompute |
 | Decisions payload < 250 KB for 120 holdings | Trim `lots[]` to summary in list view; full lots only in SlideOver fetch |
 | First paint < 1.5 s | Vite bundle ~< 200 KB gz; no chart lib |
-| Table 120+ rows smooth | @tanstack/react-virtual beyond 100 rows |
+| Table 120+ rows smooth | Plain hand-rolled `<table>` (§12.1: virtualization not used) — sufficient at current scale (163-holding real-data ORV accepted at C-4: no rendering defect observed). **C-5 CLOSED / NON-REQUIRED** — no virtualization library adopted; per-row metrics unmeasured (P-15 retained as explicit evidence gap, not reconstructed). Reopen trigger preserved: holdings > 400 OR measurable rendering/jank in a future ORV |
 
 ## 12.9 Testing plan
 

@@ -3,9 +3,15 @@
 **Status:** ~~IMPLEMENTED + FIXTURE-VALIDATED — closure pending authority-side
 real-data UAT.~~ **CLOSED (2026-08-28).** Real-data Windows UAT PASS accepted;
 committed `9e3bd12a…`; EMM-H2 CLOSED (disposition A). Themes capability =
-**COMPLETE-BUT-VACANT** (DEC-C14-001): taxonomy signed off; assignments absent-by-design
-pending the separate authority tag-pass/data-entry act. Original point-in-time header
-preserved via strikethrough (CR-025/S2 convention).
+~~**COMPLETE-BUT-VACANT** (DEC-C14-001): taxonomy signed off; assignments absent-by-design
+pending the separate authority tag-pass/data-entry act.~~ Original point-in-time header
+preserved via strikethrough (CR-025/S2 convention). **WP-1 UPDATE (2026-08-29 / CR-027):**
+authority tag-pass complete — `document_version 2`, `effective_from 2026-08-29`,
+9 fixture-holding assignments (`themes/themes.yaml` sha256 `3422577b…`, commit
+`020f3ba8…`); real-data 163 holdings remain unassigned → sub-sector fallback (authority
+intent); taxonomy IDs untouched. **Provenance distinction (R2):** document-level `source`
+= v1 taxonomy lineage (EMM-H2 dispositions H2-D1…D10 + CR-023 sign-off 2026-08-28);
+per-assignment `source` = "WP-1 authority tag-pass" — historical provenance not rewritten.
 **Authority chain:** EMM-H2 discovery → H2-D1…D10 dispositions (all ACCEPTED)
 → CR-023 taxonomy sign-off (HARDCHECKPOINT, 2026-08-28) → implementation gate.
 **Branch:** `arena/01a033db-capstew-engine`.
