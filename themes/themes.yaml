@@ -21,11 +21,11 @@
 #                    CR-023 taxonomy sign-off (2026-08-28)
 #   change identity: chg-cr023-taxonomy-v1
 schema_version: 1
-document_version: 1
-effective_from: "2026-08-28"
+document_version: 2
+effective_from: "2026-08-29"
 owner: "Ramki (authority)"
 source: "EMM-H2 dispositions H2-D1..D10 + CR-023 taxonomy sign-off (2026-08-28)"
-change_id: "chg-cr023-taxonomy-v1"
+change_id: "chg-wp1-themes-v2"
 
 taxonomy:
   - id: RATE_FIN
@@ -97,4 +97,67 @@ taxonomy:
       Domestic digital/consumer platforms without export-services economics
       => CONSUMPTION or sub_sector fallback.
 
-assignments: []   # v1: authority tag pass pending — all holdings fall back to sub_sector
+assignments:
+  - instrument: "Salasar Techno Engg"
+    theme: "CAPEX_INFRA"
+    owner: "Ramki (authority)"
+    source: "WP-1 authority tag-pass"
+    effective_from: "2026-08-29"
+    version: 2
+    change_id: "chg-wp1-themes-v2"
+  - instrument: "Ashoka Buildcon"
+    theme: "CAPEX_INFRA"
+    owner: "Ramki (authority)"
+    source: "WP-1 authority tag-pass"
+    effective_from: "2026-08-29"
+    version: 2
+    change_id: "chg-wp1-themes-v2"
+  - instrument: "Larsen & Toubro"
+    theme: "CAPEX_INFRA"
+    owner: "Ramki (authority)"
+    source: "WP-1 authority tag-pass"
+    effective_from: "2026-08-29"
+    version: 2
+    change_id: "chg-wp1-themes-v2"
+  - instrument: "AGI Greenpac"
+    theme: "CONSUMPTION"
+    owner: "Ramki (authority)"
+    source: "WP-1 authority tag-pass"
+    effective_from: "2026-08-29"
+    version: 2
+    change_id: "chg-wp1-themes-v2"
+  - instrument: "Bajaj Finance"
+    theme: "RATE_FIN"
+    owner: "Ramki (authority)"
+    source: "WP-1 authority tag-pass"
+    effective_from: "2026-08-29"
+    version: 2
+    change_id: "chg-wp1-themes-v2"
+  - instrument: "HDFC Bank"
+    theme: "RATE_FIN"
+    owner: "Ramki (authority)"
+    source: "WP-1 authority tag-pass"
+    effective_from: "2026-08-29"
+    version: 2
+    change_id: "chg-wp1-themes-v2"
+  - instrument: "Bank of Baroda"
+    theme: "PSU_GOV"
+    owner: "Ramki (authority)"
+    source: "WP-1 authority tag-pass"
+    effective_from: "2026-08-29"
+    version: 2
+    change_id: "chg-wp1-themes-v2"
+  - instrument: "DAM Capital Advisors"
+    theme: "RATE_FIN"
+    owner: "Ramki (authority)"
+    source: "WP-1 authority tag-pass"
+    effective_from: "2026-08-29"
+    version: 2
+    change_id: "chg-wp1-themes-v2"
+  - instrument: "Bharat Coking Coal"
+    theme: "PSU_GOV"
+    owner: "Ramki (authority)"
+    source: "WP-1 authority tag-pass"
+    effective_from: "2026-08-29"
+    version: 2
+    change_id: "chg-wp1-themes-v2"

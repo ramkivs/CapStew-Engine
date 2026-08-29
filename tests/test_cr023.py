@@ -327,7 +327,7 @@ def test_archive_linkage():
     rec = next(f for f in entry["files"] if f["slot"] == "themes_document")
     assert rec["filename"] == "themes.yaml"
     assert rec["as_of_source"] == "authority_document"
-    assert rec["declared_source_as_of"] == "2026-08-28"   # shipped doc effective_from
+    assert rec["declared_source_as_of"] == "2026-08-29"   # shipped doc effective_from
     assert rec["parse_status"] == "validated"
     assert rec["sha256"] == hashlib.sha256(
         (ROOT / "themes" / "themes.yaml").read_bytes()).hexdigest()
