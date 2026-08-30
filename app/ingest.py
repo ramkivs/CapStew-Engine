@@ -143,6 +143,34 @@ def parse_ledger(path):
     return rows
 
 
+def _conviction_carrier(r):
+    """Optional declared-conviction passthrough for portfolio rows (EMM-H3/G2).
+
+    Column headers arrive normalized (``_norm_key``: lowercase alphanumeric),
+    e.g. ``conviction_score`` -> ``convictionscore``. Values are carried under
+    the exact contract field names. ``conviction_score_present`` distinguishes
+    "column absent / empty cell" (False) from "text present" (True); a text
+    present value that does not parse stays None and equals the Q-i2
+    malformed/invalid case downstream — ingestion must not fail on it.
+    """
+    raw = (r.get("convictionscore") or "").strip()
+    value = None
+    if raw:
+        try:
+            d = Decimal(raw.replace(",", ""))
+            value = float(d) if d.is_finite() else None
+        except InvalidOperation:
+            value = None  # malformed — non-blocking; diagnosed by accumulate evidence
+    present = bool(raw)
+    return {
+        "conviction_score": value,
+        "conviction_score_present": present,
+        "conviction_score_source": (r.get("convictionscoresource") or "").strip() or None,
+        "conviction_score_effective_date": (r.get("convictionscoreeffectivedate") or "").strip() or None,
+        "conviction_score_version": (r.get("convictionscoreversion") or "").strip() or None,
+    }
+
+
 def parse_portfolio(path):
     """Portfolio: Instrument, Transactions, Qty Held, Avg Buy Price, Invested,
     Current Value, Allocation %, Gain/Loss %, Net Cashflow, XIRR,
@@ -164,6 +192,14 @@ def parse_portfolio(path):
                 "holding_period_days": _int(r.get("holdingperioddays")),
                 "first_date": (r.get("firstdate") or "").strip(),
                 "last_date": (r.get("lastdate") or "").strip(),
+                # EMM-H3 / G2 (Q-i1, RD-010-AUTH-001) — optional DECLARED
+                # conviction carrier pass-through. These columns may be absent
+                # entirely (steady state until the Quality/Growth producer
+                # supplies them). Defensive: a malformed numeric is carried as
+                # present-but-None (diagnosed downstream, never raised here),
+                # because Q-i2 requires a NON-BLOCKING diagnostic, not an
+                # ingest failure. Exact contract field names are preserved.
+                **_conviction_carrier(r),
             })
         except IngestError as exc:
             raise IngestError(f"line {line}: {exc}") from exc

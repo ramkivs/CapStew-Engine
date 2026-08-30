@@ -137,5 +137,13 @@ def derive_positions(portfolio_rows, lots, tickers, screener_by_ticker, policy, 
             "in_screener": screener is not None,
             "pledge_pct": float(screener["pledged_promoter_pct"]) if screener and screener["pledged_promoter_pct"] is not None else None,
             "fundamentals": fundamentals,
+            # EMM-H3 / G2 (Q-i1) — declared conviction carrier passthrough:
+            # the position IS the per-holding run-input/holding record; the
+            # fields flow verbatim from the (optional) portfolio input columns.
+            "conviction_score": p.get("conviction_score"),
+            "conviction_score_present": p.get("conviction_score_present", False),
+            "conviction_score_source": p.get("conviction_score_source"),
+            "conviction_score_effective_date": p.get("conviction_score_effective_date"),
+            "conviction_score_version": p.get("conviction_score_version"),
         })
     return positions

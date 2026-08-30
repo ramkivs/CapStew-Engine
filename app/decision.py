@@ -7,6 +7,7 @@ No decision logic exists in the browser; this module is the authority.
 from datetime import date, timedelta
 
 from . import config
+from .accumulate import evaluate_accumulate
 from .behavior import averaging_flag, parse_lots_for_behavior
 from .confidence import compute_penalties, confidence_from_penalties
 from .determinism import content_hash
@@ -16,6 +17,7 @@ from .policy import load_policy
 from .scoring import (
     WEIGHT_KEYS,
     apply_eligibility_caps,
+    band_for,
     band_of,
     categorize_quality,
     composite,
@@ -336,10 +338,44 @@ def decide_all(foundation, policy_overrides=None, hysteresis=None, apply_hystere
     for pos in positions:
         ledger_name = p2l.get(pos["instrument"])
         pos_lots = lots_by.get(ledger_name, []) if ledger_name is not None else []
-        holdings.append(
-            decide_instrument(pos, pos_lots, policy, total_value, as_of,
+        h = decide_instrument(pos, pos_lots, policy, total_value, as_of,
                               hv, stale_files, blocked, apply_hysteresis)
+        # EMM-H3 / G2 — ACCUMULATE tag evaluation (frozen §1.1 six-clause
+        # conjunction; additive surface only — never a competing decision).
+        # high_threshold comes from policy (G1-installed policy-data); never
+        # hard-coded here. conviction fields flow only from the declared
+        # per-holding carrier (pos); nothing is computed or inferred.
+        f = pos.get("fundamentals") or {}
+        bucket = pos.get("bucket")
+        band_low = band_for(bucket, policy)[0] if bucket else None
+        flag = (h.get("behavioral_flags") or ["none"])[0]
+        ev = evaluate_accumulate(
+            decision=h["decision"],
+            conviction_score=pos.get("conviction_score"),
+            conviction_present=pos.get("conviction_score_present", False),
+            conviction_source=pos.get("conviction_score_source"),
+            conviction_effective_date=pos.get("conviction_score_effective_date"),
+            conviction_version=pos.get("conviction_score_version"),
+            high_threshold=policy.get("high_threshold"),
+            # .get: G0 NO-DECISION holdings (_nod) carry a deliberate minimal shape.
+            alloc_pct=h.get("alloc_pct"),
+            band_low=band_low,
+            pe_premium=f.get("pe_premium_vs_subsector"),
+            pb_premium=f.get("pb_premium_vs_subsector"),
+            gates_fired=h["stage1"]["gates_fired"],
+            averaging_flag=None if flag == "none" else flag,
         )
+        # Q-i2: per-holding NON-BLOCKING diagnostic + provenance echo (VP-1).
+        h["tags"] = ["ACCUMULATE"] if ev["eligible"] else []
+        h["accumulate_evidence"] = {
+            "eligible": ev["eligible"],
+            "reason": ev["reason"],
+            "conviction_score": pos.get("conviction_score"),
+            "conviction_score_source": pos.get("conviction_score_source"),
+            "conviction_score_effective_date": pos.get("conviction_score_effective_date"),
+            "conviction_score_version": pos.get("conviction_score_version"),
+        }
+        holdings.append(h)
 
     dist = {}
     for h in holdings:
