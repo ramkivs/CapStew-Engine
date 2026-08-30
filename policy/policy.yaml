@@ -88,3 +88,4 @@ review_cadence:
 # Phase-1 operational parameters
 ltcg_period_days: 365
 recon_tolerance_inr: 0.01
+high_threshold: 70
