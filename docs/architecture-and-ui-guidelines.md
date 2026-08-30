@@ -123,7 +123,7 @@ These lock the "will this be React?" question and everything downstream of it. E
 | `policy` | Policy load + validation (policy is data, not code) | loader + validator | policy dict |
 | `config` | Version constants + thresholds + paths | — | constants |
 
-Planned modules that did not ship under their v1.1 names (CR-020 record): `portfolio_layer` → responsibilities live in `tax.py` (sequencing), `decision.py` (queue, theme concentration), `store.py`; `writer` → `store.py`; `whatif` → `POST /what-if` in `main.py` (recompute, never persisted); `accumulate_tag` / the ACCUMULATE trigger → **GAP — never implemented (EMM-H3; disposition E2E-017-PD R2-C)**; `map_name_to_ticker` → superseded by the CR-006 deterministic `canonical_name_key()` join (no fuzzy/ticker heuristics — engine guardrail).
+Planned modules that did not ship under their v1.1 names (CR-020 record): `portfolio_layer` → responsibilities live in `tax.py` (sequencing), `decision.py` (queue, theme concentration), `store.py`; `writer` → `store.py`; `whatif` → `POST /what-if` in `main.py` (recompute, never persisted); `accumulate_tag` / the ACCUMULATE trigger → ~~**GAP — never implemented (EMM-H3; disposition E2E-017-PD R2-C)**~~ **IMPLEMENTED under EMM-H3/G2 (commit `fa80eae…`, 2026-08-30 — `app/accumulate.py`, frozen §1.1 six-clause conjunction); IMPLEMENTED + TESTED / NOT ACTIVATED / NOT CERTIFIED (see session-register "Update — EMM-H3 G1/G2 (2026-08-30)")**; `map_name_to_ticker` → superseded by the CR-006 deterministic `canonical_name_key()` join (no fuzzy/ticker heuristics — engine guardrail).
 
 ---
 

@@ -28,7 +28,8 @@ Portfolio discipline · valuation · tax · risk.
 | v1.1.0 | lightweight tag `638890bb` + hosted GitHub Release | **RELEASE-DOCUMENTED MILESTONE — not a certified release** (E2E-013-R C1 / E2E-017-PD R1-B); no in-repo release record exists for this epoch | 176 (hosted-Release claim; not re-audited in-repo) |
 | main-current | `ffdf9cba2c7f5e479765c57f314f2cb7823d8138` | TESTED (CR-005/CR-019/CR-008/CR-012A/CR-012B merged) | 450 collected |
 | session branch | `arena/01a033db-capstew-engine` @ `e473417b75d0a60a9be7376803d4d77a867e5858` | TESTED; CR-006 REAL-DATA VERIFIED (authority-executed acceptance) | 497 collected |
-| session branch (current) | `arena/01a033db-capstew-engine` @ `020f3ba870686f109b5dd37e5094acc56ae84fc5` | TESTED; lineage CR-020→CR-026; CR-023 / CR-024 / EMM-H2 / EMM-F2 **CLOSED**; E2E-013 / E2E-017 / E2E-018 matrices **ACCEPTED**; EMM-H3 methodology settled (DEC-EMM-H3-001); C-14 Themes **CLOSED** — WP-1 authority tag-pass v2 ACTIVATED (2026-08-29; 9 fixture-holding assignments; real-data 163 unassigned → fallback, authority intent); C-4 ORV **ACCEPTED AS PASS**; R-SORT-001 **CLOSED** (CR-026); C-5 **CLOSED / NON-REQUIRED**; P-07 limitation retained; `ENGINE_VERSION 0.6.0-phase3` | 571 collected |
+| session branch | `arena/01a033db-capstew-engine` @ `020f3ba870686f109b5dd37e5094acc56ae84fc5` | TESTED; lineage CR-020→CR-026; CR-023 / CR-024 / EMM-H2 / EMM-F2 **CLOSED**; E2E-013 / E2E-017 / E2E-018 matrices **ACCEPTED**; EMM-H3 methodology settled (DEC-EMM-H3-001); C-14 Themes **CLOSED** — WP-1 authority tag-pass v2 ACTIVATED (2026-08-29; 9 fixture-holding assignments; real-data 163 unassigned → fallback, authority intent); C-4 ORV **ACCEPTED AS PASS**; R-SORT-001 **CLOSED** (CR-026); C-5 **CLOSED / NON-REQUIRED**; P-07 limitation retained; `ENGINE_VERSION 0.6.0-phase3` | 571 collected |
+| session branch (current) | `arena/01a033db-capstew-engine` @ `fa80eaeddaa8f31e21df828a7b8fbf211cd79d35` | TESTED; lineage CR-020→CR-026→WP-1→CR-027→CR-029/G1(`3d9dd8a…`)→G2(`fa80eae…`); EMM-H3 ACCUMULATE **IMPLEMENTED + TESTED / NOT ACTIVATED / NOT CERTIFIED** (`high_threshold: 70` INSTALLED as policy-data; activation requires separate authority gate + declared Quality/Growth conviction inputs); Themes WP-1 ACTIVATED state unchanged; C-4 ORV accepted as PASS; P-07 limitation retained; `ENGINE_VERSION 0.6.0-phase3` | 591 collected |
 
 - `MANIFEST.sha256` pins the **v1.0.0 tree only** and `RELEASE-v1.md` records the **v1.0.0 release only**. Both are frozen v1.0.0 records, unchanged by design — they are not current-tree manifests.
 - Version constants (`ENGINE_VERSION`, `NORMALIZATION_VERSION`, `CALCULATION_VERSION`, `policy_version`) were static across epochs up to `e473417`; payload provenance discriminated material builds only via git SHA + test ledger until the **VP-1** rule (`docs/version-provenance-rule-vp1.md`). **VP-1 is applied since CR-022** (0.4.0 → 0.5.0 → current `ENGINE_VERSION 0.6.0-phase3`; `CALCULATION_VERSION 2.1`, `NORMALIZATION_VERSION 1.0`, `policy_version 1` unchanged — no scoring/normalize/policy-semantic change in CR-022…CR-024).
@@ -41,7 +42,7 @@ Portfolio discipline · valuation · tax · risk.
 | G1 historical legs | evidence-only (`quality_drop` / `pledge_qoq` query); production G1 gate semantics unchanged |
 | G-05 | PARTIAL — CR-022 forward capture active; pre-CR-022 history permanently retained gap (F2-D6-A) |
 | Themes (CR-023 + WP-1) | **ACTIVATED (fixture lane)** — authority tag-pass complete: `document_version 2`, `effective_from 2026-08-29`, 9 fixture-holding authority assignments (commit `020f3ba8…`; `themes/themes.yaml` sha256 `3422577b…`); real-data 163 holdings remain unassigned → sub-sector fallback (authority intent; no manual assignments implied). IMPL ≠ ACTIVATED ≠ CERTIFIED: fixture-lane activation only; CERTIFIED epoch remains v1.0.0 |
-| ACCUMULATE (EMM-H3) | methodology **settled** — sub-state/refinement of HOLD (DEC-EMM-H3-001); production-blocked on unfrozen inputs U-1…U-6 |
+| ACCUMULATE (EMM-H3) | methodology **settled** — sub-state/refinement of HOLD (DEC-EMM-H3-001); ~~production-blocked on unfrozen inputs U-1…U-6~~ **IMPLEMENTED + TESTED** (CR-029/G2, commit `fa80eae…`, 2026-08-30; frozen §1.1 six-clause conjunction; +20 tests, 591 total); `high_threshold: 70` **INSTALLED** as policy-data (G1, commit `3d9dd8a…`); **NOT ACTIVATED** — production activation requires a separate authority activation gate **and** actual declared Quality/Growth conviction inputs (no producer lane exists); **NOT CERTIFIED**. IMPL ≠ ACTIVATED ≠ CERTIFIED preserved — see session-register "Update — EMM-H3 G1/G2 (2026-08-30)" |
 | R-SORT-001 | Decisions-table sorting — **CLOSED** — implemented under CR-026 (commit `74a3ebd85aaf67ef3afa0761e23a0f4279e817c5`); ORV/UAT PASS (S1-A/S1-B/S2, authority-executed); presentation-only (`frontend/src/utils/sort.ts` + `DecisionsView`); no multi-column sorting, no persistence, no decision-logic change; closed, not redesigned |
 | C-5 table virtualization | **CLOSED / NON-REQUIRED** — 163-holding real-data rendering accepted at C-4 with no observed rendering/performance defect; virtualization not currently required; P-15 per-row metrics remain an explicit evidence gap (not reconstructed); reopen trigger: holdings > 400 OR measurable rendering/jank in a future ORV; R-SORT-001 remains separate and is now implemented/closed (CR-026) |
 | P-07 run overlay | evidence limitation retained — NOT OBSERVABLE / NOT REPLAYABLE (not promoted to PASS) |
@@ -89,7 +90,7 @@ app/
   symbols.py     CR-006 canonical instrument identity (deterministic name-key join; no fuzzy/ticker heuristics)
 policy/policy.yaml        D-01…D-15 (signed in Freeze §14; operational serialization only)
 fixtures/                 generated CSV fixtures (golden trilogy embedded) + sold_sample.csv
-tests/                    backend suites — 571 collected at epoch `a7f5c87` (unit · gates · scoring · confidence · trim · hysteresis · decision · audit · policy · tax · diff · API · schema · determinism · import_errors · golden fixtures · CR-005/006/007/009/012A/012B/018/019 · CR-022/023/024); 497 at `e473417`; 126 at the Phase-3 build point
+tests/                    backend suites — 591 collected at epoch `fa80eae` (unit · gates · scoring · confidence · trim · hysteresis · decision · audit · policy · tax · diff · API · schema · determinism · import_errors · golden fixtures · CR-005/006/007/009/012A/012B/018/019 · CR-022/023/024 · EMM-H3/G2 accumulate ×20); 571 at `a7f5c87`; 497 at `e473417`; 126 at the Phase-3 build point
 scripts/hash_engine.py    cross-process determinism probe
 ```
 
@@ -98,7 +99,7 @@ scripts/hash_engine.py    cross-process determinism probe
 ```bash
 pip install -r requirements.txt
 python fixtures/generate_fixtures.py fixtures   # regenerate fixtures
-pytest -q                                       # suite size is epoch-stamped (see epochs table): 571 collected at a7f5c87
+pytest -q                                       # suite size is epoch-stamped (see epochs table): 591 collected at fa80eae
 cd frontend && npx tsc --noEmit                 # frontend type-check clean
 uvicorn app.main:app --host 0.0.0.0 --port 8000 # API
 ```
