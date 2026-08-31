@@ -148,7 +148,7 @@ def resolve_instrument(name, *, screener_rows=None, alias_map=None, explicit_tic
     if ambiguous:
         return SymbolResolution(None, False, MATCH_AMBIGUOUS, True, candidates)
 
-    # 5. Exact normalized ticker match only when explicit ticker is supplied.
+    # 5. Exact normalized ticker match when explicit ticker is supplied.
     normalized_ticker = normalize_ticker(explicit_ticker)
     if normalized_ticker:
         ticker, ambiguous, candidates = _unique_or_ambiguous(screener_ticker_index.get(normalized_ticker))
@@ -157,7 +157,21 @@ def resolve_instrument(name, *, screener_rows=None, alias_map=None, explicit_tic
         if ambiguous:
             return SymbolResolution(None, False, MATCH_AMBIGUOUS, True, candidates)
 
-    # 6. Fail closed.
+    # 6. CR-020: a portfolio Instrument may itself be a canonical ticker.
+    # Keep display-name and explicit-ticker precedence above; only treat the
+    # instrument value as a ticker when no explicit ticker was supplied.
+    if not normalized_ticker:
+        normalized_instrument = normalize_ticker(raw_name)
+        if normalized_instrument:
+            ticker, ambiguous, candidates = _unique_or_ambiguous(
+                screener_ticker_index.get(normalized_instrument)
+            )
+            if ticker:
+                return SymbolResolution(ticker, True, MATCH_EXACT_TICKER)
+            if ambiguous:
+                return SymbolResolution(None, False, MATCH_AMBIGUOUS, True, candidates)
+
+    # 7. Fail closed.
     return SymbolResolution(None, False, MATCH_UNRESOLVED)
 
 
