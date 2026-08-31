@@ -309,19 +309,22 @@ def _validate_holding(value: Any, path: str, errors: list[str]) -> None:
     _validate_previous_run(value.get("previous_run"), f"{path}.previous_run", errors)
     _string(value.get("next_review_date"), f"{path}.next_review_date", errors, nullable=True)
 
-    if decision != "NO-DECISION":
-        full_fields = (
-            "alloc_pct",
-            "gain_pct",
-            "current_value",
-            "qty_held",
-            "pledge_pct",
-            "data_completeness",
-            "data_quality",
-            "lots",
-            "behavioral",
-        )
-        _require(value, path, full_fields, errors)
+    if decision == "NO-DECISION":
+        _validate_no_decision_holding(value, path, errors)
+        return
+
+    full_fields = (
+        "alloc_pct",
+        "gain_pct",
+        "current_value",
+        "qty_held",
+        "pledge_pct",
+        "data_completeness",
+        "data_quality",
+        "lots",
+        "behavioral",
+    )
+    _require(value, path, full_fields, errors)
 
     for key in ("alloc_pct", "gain_pct", "current_value", "qty_held", "pledge_pct"):
         if key in value:
@@ -334,6 +337,31 @@ def _validate_holding(value: Any, path: str, errors: list[str]) -> None:
         _validate_lots(value.get("lots"), f"{path}.lots", errors)
     if "behavioral" in value:
         _validate_behavioral(value.get("behavioral"), f"{path}.behavioral", errors)
+
+
+def _validate_no_decision_holding(value: Any, path: str, errors: list[str]) -> None:
+    """Validate the intentionally minimal G0 / NO-DECISION holding variant."""
+    if value.get("composite_score") is not None:
+        _add(errors, f"{path}.composite_score", "must be null for NO-DECISION")
+    if value.get("confidence") is not None:
+        _add(errors, f"{path}.confidence", "must be null for NO-DECISION")
+    if value.get("confidence_breakdown") is not None:
+        _add(errors, f"{path}.confidence_breakdown", "must be null for NO-DECISION")
+    if value.get("subscores") is not None:
+        _add(errors, f"{path}.subscores", "must be null for NO-DECISION")
+    if value.get("evidence") is not None:
+        _add(errors, f"{path}.evidence", "must be null for NO-DECISION")
+    if value.get("trim") is not None:
+        _add(errors, f"{path}.trim", "must be null for NO-DECISION")
+    if value.get("tax_status") is not None:
+        _add(errors, f"{path}.tax_status", "must be null for NO-DECISION")
+    if value.get("previous_run") is not None:
+        _add(errors, f"{path}.previous_run", "must be null for NO-DECISION")
+
+    for key in ("alloc_pct", "gain_pct", "current_value", "qty_held", "pledge_pct",
+                "data_completeness", "data_quality", "lots", "behavioral"):
+        if key in value:
+            _add(errors, f"{path}.{key}", f"must be omitted for NO-DECISION")
 
 
 def _validate_confidence_breakdown(value: Any, path: str, errors: list[str]) -> None:

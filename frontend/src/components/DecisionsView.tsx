@@ -117,13 +117,13 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
                   return (
                     <tr key={h.instrument} className="row" onClick={() => onSelect(h)}>
                       <td className="tick">{h.ticker ?? h.instrument}
-                        {h.data_completeness.position_sizing === false ? ' · partial' : ''}
-                        {h.behavioral.blocks_adds ? ' ' : ''}
+                        {h.decision !== 'NO-DECISION' && h.data_completeness.position_sizing === false ? ' · partial' : ''}
+                        {h.decision !== 'NO-DECISION' && h.behavioral.blocks_adds ? ' ' : ''}
                       </td>
                       <td className="muted" style={{ fontFamily: 'system-ui' }}>{h.bucket ?? '—'}</td>
-                      <td className="num">{pct(h.alloc_pct)}</td>
-                      <td className={`num ${(h.gain_pct ?? 0) >= 0 ? 'up' : 'down'}`}>
-                        {(h.gain_pct ?? 0) >= 0 ? '+' : ''}{pct(h.gain_pct)}
+                      <td className="num">{h.decision === 'NO-DECISION' ? '—' : pct(h.alloc_pct)}</td>
+                      <td className={`num ${h.decision === 'NO-DECISION' ? '' : (h.gain_pct ?? 0) >= 0 ? 'up' : 'down'}`}>
+                        {h.decision === 'NO-DECISION' ? '—' : `${(h.gain_pct ?? 0) >= 0 ? '+' : ''}${pct(h.gain_pct)}`}
                       </td>
                       <td>
                         <Badge decision={h.decision} />
@@ -274,6 +274,9 @@ function formatWarning(w: PayloadWarning): string {
 
 function qualityCaveat(h: Holding | undefined): string {
   if (!h) return 'holding details unavailable in payload';
+  if (h.decision === 'NO-DECISION') {
+    return `no decision issued: ${h.reason_tree.decision_path}`;
+  }
 
   const parts: string[] = [];
   if (h.evidence) {

@@ -55,16 +55,37 @@ export interface Trim {
   rho?: number;
 }
 
-export interface Holding {
+export interface ReasonTree {
+  decision_path: string;
+  stage1: Record<string, unknown>;
+  stage2: Record<string, unknown>;
+}
+
+export interface NoDecisionReasonTree {
+  decision_path: string;
+}
+
+export interface WhyNow {
+  primary_trigger: string;
+  contributors: { label: string; value: number; weight: number }[];
+}
+
+export interface NoDecisionWhyNow {
+  primary_trigger: string;
+}
+
+export interface ScoredHolding {
   instrument: string;
   ticker: string | null;
   bucket: string | null;
+  bucket_basis: string;
+  band_basis: string;
   alloc_pct: number | null;
   gain_pct: number | null;
   current_value: number | null;
   qty_held: number | null;
   pledge_pct: number | null;
-  decision: Decision;
+  decision: Exclude<Decision, 'NO-DECISION'>;
   composite_score: number | null;
   confidence: number | null;
   confidence_breakdown: Record<string, number> | null;
@@ -84,11 +105,35 @@ export interface Holding {
   data_completeness: Record<string, boolean>;
   data_quality: Record<string, string>;
   lots: Lot[];
-  reason_tree: { decision_path: string; stage1: Record<string, unknown>; stage2: Record<string, unknown> };
-  why_now: { primary_trigger: string; contributors: { label: string; value: number; weight: number }[] };
+  reason_tree: ReasonTree;
+  why_now: WhyNow;
   previous_run: { decision: string; composite_score: number | null; as_of: string } | null;
   next_review_date: string | null;
 }
+
+export interface NoDecisionHolding {
+  instrument: string;
+  ticker: string | null;
+  bucket: string | null;
+  decision: 'NO-DECISION';
+  composite_score: null;
+  confidence: null;
+  confidence_breakdown: null;
+  subscores: null;
+  stage1: Stage1;
+  evidence: null;
+  primary_drivers: string[];
+  watch_flags: string[];
+  behavioral_flags: string[];
+  trim: null;
+  tax_status: null;
+  reason_tree: NoDecisionReasonTree;
+  why_now: NoDecisionWhyNow;
+  previous_run: null;
+  next_review_date: string;
+}
+
+export type Holding = ScoredHolding | NoDecisionHolding;
 
 export interface ActionQueueItem {
   rank: number; instrument: string; decision: string; reason: string; score: number | null;

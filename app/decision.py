@@ -103,6 +103,7 @@ def _review_date(decision, conf, gate_fired, as_of, flag):
 
 
 def _nod(pos, as_of):
+    """Return the explicit minimal G0 / NO-DECISION holding variant."""
     return {
         "instrument": pos["instrument"], "ticker": pos.get("ticker"), "bucket": pos.get("bucket"),
         "decision": "NO-DECISION", "composite_score": None, "confidence": None,

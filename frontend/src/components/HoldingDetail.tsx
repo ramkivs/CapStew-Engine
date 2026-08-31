@@ -1,4 +1,4 @@
-import type { Holding } from '../types';
+import type { Holding, NoDecisionHolding, ScoredHolding } from '../types';
 import { Badge, Bar, Ring, TagChip, inr, num, pct } from './ui';
 import { CAT_COLORS } from './DecisionsView';
 
@@ -13,6 +13,66 @@ const CAT_LABELS: Record<string, string> = {
 
 export function HoldingDetail({ holding, onClose }: { holding: Holding | null; onClose: () => void }) {
   if (!holding) return null;
+  if (holding.decision === 'NO-DECISION') {
+    return <NoDecisionHoldingDetail holding={holding} onClose={onClose} />;
+  }
+  return <ScoredHoldingDetail holding={holding} onClose={onClose} />;
+}
+
+function NoDecisionHoldingDetail({ holding, onClose }: { holding: NoDecisionHolding; onClose: () => void }) {
+  const h = holding;
+  const gate = gateMeta(h);
+
+  return (
+    <>
+      <div className="scrim open" onClick={onClose} />
+      <div className="slideover open" role="dialog" aria-modal="true">
+        <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 11, color: 'var(--dim)', fontFamily: 'var(--mono)' }}>
+              {h.ticker ?? h.instrument}
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>
+              {h.instrument} <span className="note" style={{ fontWeight: 400 }}>· {h.bucket ?? 'unknown bucket'}</span>
+            </div>
+          </div>
+          <Badge decision={h.decision} />
+          <TagChip color={gate.color}>{gate.label}</TagChip>
+          <span className="chip warn">Human review required</span>
+          <button className="btn" style={{ padding: '6px 12px' }} onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ padding: '16px 20px' }}>
+          <div className="card">
+            <h3>No decision issued <span className="tag">G0 data-integrity block</span></h3>
+            <div className="note">
+              The backend withheld a scored decision because reconciliation failed for this instrument.
+              No Stage 2 score, evidence completeness, data-quality map, or trim plan is available for this holding.
+            </div>
+            <Row label="Stage 1 fired" value="no — G0 blocks decision" color="var(--red)" />
+            <Row label="Winning gate" value={h.stage1.winning_gate ?? 'G0'} color="var(--red)" />
+            <Row label="Next review" value={h.next_review_date} color="var(--yellow)" />
+            <div className="note" style={{ marginTop: 8, fontFamily: 'var(--mono)', color: 'var(--text)' }}>
+              {h.reason_tree.decision_path}
+            </div>
+          </div>
+
+          <div className="card" style={{ marginTop: 14 }}>
+            <h3>Data-integrity action</h3>
+            <div className="note" style={{ marginBottom: 8 }}>
+              Resolve the reported reconciliation issue and run the backend again before relying on a decision for this holding.
+            </div>
+            <ul className="drivers">
+              {h.primary_drivers.map((driver, i) => <li key={i} className="danger">⚠ {driver}</li>)}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ScoredHoldingDetail({ holding, onClose }: { holding: ScoredHolding; onClose: () => void }) {
   const h = holding;
   const m = meta(h.decision);
   const weights = h.subscores;
