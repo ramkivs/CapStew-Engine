@@ -1,5 +1,8 @@
+import { useEffect, useMemo, useState } from 'react';
 import type { DecisionPayload, Holding } from '../types';
 import { Badge, Banner, Bar, Stat, TagChip, inr, pct, num } from './ui';
+import { comparatorFor, cycleSort } from '../utils/sort';
+import type { SortDir, SortState } from '../utils/sort';
 
 const CAT_COLORS: Record<string, string> = {
   position_sizing: '#34d399',
@@ -12,6 +15,33 @@ const CAT_COLORS: Record<string, string> = {
 
 type PayloadWarning = DecisionPayload['warnings'][number];
 
+type SortKey =
+  | 'instrument'
+  | 'bucket'
+  | 'alloc'
+  | 'gain'
+  | 'decision'
+  | 'gate'
+  | 'composite'
+  | 'confidence'
+  | 'review';
+
+const SORT_COLUMNS: Record<
+  SortKey,
+  { label: string; numeric: boolean; get: (h: Holding) => string | number | null }
+> = {
+  instrument: { label: 'Instrument', numeric: false, get: (h) => h.ticker ?? h.instrument },
+  bucket: { label: 'Bucket', numeric: false, get: (h) => h.bucket },
+  // G0 holdings intentionally omit scored-only fields under CR-022.
+  alloc: { label: 'Alloc', numeric: true, get: (h) => h.decision === 'NO-DECISION' ? null : h.alloc_pct },
+  gain: { label: 'Gain/Loss', numeric: true, get: (h) => h.decision === 'NO-DECISION' ? null : h.gain_pct },
+  decision: { label: 'Final decision', numeric: false, get: (h) => h.decision },
+  gate: { label: 'Gate state', numeric: false, get: (h) => gateMeta(h).label },
+  composite: { label: 'Composite', numeric: true, get: (h) => h.composite_score },
+  confidence: { label: 'Conf', numeric: true, get: (h) => h.confidence },
+  review: { label: 'Review', numeric: false, get: (h) => h.next_review_date },
+};
+
 export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
   payload: DecisionPayload;
   preview: DecisionPayload | null;
@@ -23,6 +53,27 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
   const tax = p.portfolio_summary.tax as Record<string, unknown>;
   const holdingsByInstrument = new Map(p.holdings.map((h) => [h.instrument, h]));
   const warningsByInstrument = groupWarningsByInstrument(p.warnings);
+
+  // CR-026 (R-SORT-001): view-local presentation state. The default null state
+  // leaves the authoritative backend holding order untouched and resets whenever
+  // the payload object changes, including preview swaps and clears.
+  const [sort, setSort] = useState<SortState<SortKey> | null>(null);
+  useEffect(() => {
+    setSort(null);
+  }, [p]);
+  const holdings = useMemo(() => {
+    if (sort === null) return p.holdings;
+    const col = SORT_COLUMNS[sort.key];
+    // Sort a copy only: payload arrays and all backend-derived exports remain
+    // unchanged (ADR-1a; CR-026 presentation-only behavior).
+    return [...p.holdings].sort(
+      comparatorFor(
+        (h: Holding) => col.get(h),
+        sort.dir,
+        (h: Holding) => h.ticker ?? h.instrument,
+      ),
+    );
+  }, [p, sort]);
 
   return (
     <div>
@@ -95,21 +146,40 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
 
       <div className="grid cols-2">
         <div className="card">
-          <h3>Holdings — scored & ranked <span className="tag">click row → detail</span></h3>
+          <h3>Holdings — scored & ranked <span className="tag">click header → sort · click row → detail</span></h3>
           <div className="note" style={{ marginBottom: 8 }}>
             Decision, score, confidence, gate state, and review date are displayed separately to avoid treating a composite score as the action.
+            Header sorting is presentation-only (nulls shown as — always sort last): it never changes decisions, ranks, sizing, gate state, or exports.
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table>
               <thead>
                 <tr>
-                  <th>Instrument</th><th>Bucket</th>
-                  <th className="num">Alloc</th><th className="num">Gain/Loss</th>
-                  <th>Final decision</th><th>Gate state</th><th className="num">Composite</th><th className="num">Conf</th><th>Review</th>
+                  {(Object.entries(SORT_COLUMNS) as [SortKey, (typeof SORT_COLUMNS)[SortKey]][]).map(([key, col]) => {
+                    const active = sort?.key === key;
+                    const direction: SortDir | undefined = active ? sort?.dir : undefined;
+                    return (
+                      <th key={key} className={col.numeric ? 'num' : undefined}
+                        aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                        <button
+                          type="button"
+                          className={`th-sort${active ? ' active' : ''}`}
+                          title={`Sort by ${col.label}`}
+                          aria-label={`Sort by ${col.label}${active ? ` (currently ${direction === 'asc' ? 'ascending' : 'descending'})` : ''}`}
+                          onClick={() => setSort((current) => cycleSort(current, key))}
+                        >
+                          {col.label}
+                          <span className="sort-ind" aria-hidden="true">
+                            {active ? (direction === 'asc' ? '▲' : '▼') : '⇅'}
+                          </span>
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {p.holdings.map((h) => {
+                {holdings.map((h) => {
                   const m = meta(h.decision);
                   const prev = h.previous_run;
                   const changed = prev && prev.decision !== h.decision;
