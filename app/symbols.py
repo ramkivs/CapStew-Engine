@@ -17,13 +17,23 @@ MATCH_EXACT_SYMBOL_MAP = "exact_symbol_map"
 MATCH_ALIAS = "alias"
 MATCH_NORMALIZED_SCREENER_NAME = "normalized_screener_name"
 MATCH_EXACT_TICKER = "exact_ticker"
+MATCH_SECURITY_SERIES = "security_series"
 MATCH_UNRESOLVED = "unresolved"
 MATCH_AMBIGUOUS = "ambiguous"
 
-# Intentionally empty until a named authorization adds real aliases. The resolver
-# supports a controlled alias map and tests its collision behavior with synthetic
-# data, but no real portfolio names are embedded here.
-CONTROLLED_ALIAS_MAP: tuple[tuple[str, str], ...] = ()
+# CR-023: these are evidence-backed company-name identities from the latest
+# full-holdings reconciliation. They are controlled aliases, not fuzzy matches.
+CONTROLLED_ALIAS_MAP: tuple[tuple[str, str], ...] = (
+    ("Kalyan Jewellers", "KALYANKJIL"),
+    ("RateGain Travel", "RATEGAIN"),
+    ("Shakti Pumps", "SHAKTIPUMP"),
+    ("Sharda Motor", "SHARDAMOTR"),
+)
+
+# CR-023 permits only these terminal portfolio security-series suffixes. They
+# are intentionally not part of normalize_ticker(): bare and qualified ticker
+# identities, and all unsupported suffixes, remain distinct.
+_SECURITY_SERIES_SUFFIXES = ("-RR", "-IV", "-BE")
 
 _LEGAL_SUFFIXES = {"ltd", "limited", "pvt", "private", "co", "company"}
 _NON_ALNUM_RE = re.compile(r"[^0-9a-z]+")
@@ -45,6 +55,22 @@ def normalize_ticker(value: str | None) -> str | None:
         return None
     ticker = "".join(str(value).strip().upper().split())
     return ticker or None
+
+
+def strip_security_series_suffix(value: str | None) -> str | None:
+    """Return a base ticker for an explicitly authorized portfolio series form.
+
+    Only terminal ``-RR``, ``-IV``, and ``-BE`` are recognized. This helper is
+    deliberately separate from ``normalize_ticker`` so unsupported suffixes and
+    bare-versus-exchange-qualified identities remain distinct.
+    """
+    ticker = normalize_ticker(value)
+    if not ticker:
+        return None
+    for suffix in _SECURITY_SERIES_SUFFIXES:
+        if ticker.endswith(suffix) and len(ticker) > len(suffix):
+            return ticker[:-len(suffix)]
+    return None
 
 
 def canonical_name_key(value: str | None) -> str:
@@ -171,7 +197,19 @@ def resolve_instrument(name, *, screener_rows=None, alias_map=None, explicit_tic
             if ambiguous:
                 return SymbolResolution(None, False, MATCH_AMBIGUOUS, True, candidates)
 
-    # 7. Fail closed.
+        # 7. CR-023: strip only an explicitly authorized terminal security-series
+        # suffix from a portfolio instrument and resolve its unique base ticker.
+        series_base = strip_security_series_suffix(raw_name)
+        if series_base:
+            ticker, ambiguous, candidates = _unique_or_ambiguous(
+                screener_ticker_index.get(series_base)
+            )
+            if ticker:
+                return SymbolResolution(ticker, True, MATCH_SECURITY_SERIES)
+            if ambiguous:
+                return SymbolResolution(None, False, MATCH_AMBIGUOUS, True, candidates)
+
+    # 8. Fail closed.
     return SymbolResolution(None, False, MATCH_UNRESOLVED)
 
 
