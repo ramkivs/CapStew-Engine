@@ -12,7 +12,7 @@ from . import config
 from .determinism import content_hash
 from .ingest import parse_ledger, parse_portfolio, parse_screener
 from .lot_engine import build_lots, derive_positions
-from .symbols import resolve_instrument
+from .symbols import normalize_ticker, resolve_instrument
 from .policy import get_ltcg_period_days, get_recon_tolerance, load_policy
 from .reconcile import reconcile
 from .schema import validate_decision_payload
@@ -73,7 +73,11 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
         warnings.append({"code": "DATE_FORMAT_INFERRED", "message": "; ".join(inferred[:5])})
 
     # 5 — positions (roll-up, screener join)
-    screener_by_ticker = {s["ticker"]: s for s in screener_rows}
+    screener_by_ticker = {
+        normalize_ticker(s["ticker"]): s
+        for s in screener_rows
+        if normalize_ticker(s["ticker"])
+    }
     positions = derive_positions(portfolio_rows, lots, tickers, screener_by_ticker, policy)
     for p in positions:
         if not p["in_screener"]:
