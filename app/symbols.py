@@ -17,6 +17,8 @@ MATCH_EXACT_SYMBOL_MAP = "exact_symbol_map"
 MATCH_ALIAS = "alias"
 MATCH_NORMALIZED_SCREENER_NAME = "normalized_screener_name"
 MATCH_EXACT_TICKER = "exact_ticker"
+MATCH_NORMALIZED_TICKER = "normalized_ticker"
+MATCH_CONTROLLED_SCREENER_CROSSWALK = "controlled_screener_crosswalk"
 MATCH_SECURITY_SERIES = "security_series"
 MATCH_UNRESOLVED = "unresolved"
 MATCH_AMBIGUOUS = "ambiguous"
@@ -28,6 +30,13 @@ CONTROLLED_ALIAS_MAP: tuple[tuple[str, str], ...] = (
     ("RateGain Travel", "RATEGAIN"),
     ("Shakti Pumps", "SHAKTIPUMP"),
     ("Sharda Motor", "SHARDAMOTR"),
+)
+
+# Explicit screener-to-canonical identity authority. This is deliberately kept
+# separate from CONTROLLED_ALIAS_MAP: the source side is a confirmed screener
+# ticker, not a portfolio/display-name alias. Do not infer additional pairs.
+CONTROLLED_SCREENER_TICKER_CROSSWALK: tuple[tuple[str, str], ...] = (
+    ("AGI", "AGIGREENPAC"),
 )
 
 # CR-023 permits only these terminal portfolio security-series suffixes. They
@@ -55,6 +64,27 @@ def normalize_ticker(value: str | None) -> str | None:
         return None
     ticker = "".join(str(value).strip().upper().split())
     return ticker or None
+
+
+def resolve_screener_ticker(value: str | None) -> SymbolResolution:
+    """Resolve a screener ticker to the established canonical ticker.
+
+    The only semantic crosswalk currently authorized is the exact AGI pair. All
+    other screener tickers receive conservative normalization only; they are not
+    matched by name resemblance, substring, or ticker similarity.
+    """
+    ticker = normalize_ticker(value)
+    if not ticker:
+        return SymbolResolution(None, False, MATCH_UNRESOLVED)
+
+    for source, canonical in CONTROLLED_SCREENER_TICKER_CROSSWALK:
+        if ticker == source:
+            return SymbolResolution(
+                canonical,
+                True,
+                MATCH_CONTROLLED_SCREENER_CROSSWALK,
+            )
+    return SymbolResolution(ticker, True, MATCH_NORMALIZED_TICKER)
 
 
 def strip_security_series_suffix(value: str | None) -> str | None:
@@ -189,6 +219,10 @@ def resolve_instrument(name, *, screener_rows=None, alias_map=None, explicit_tic
     if not normalized_ticker:
         normalized_instrument = normalize_ticker(raw_name)
         if normalized_instrument:
+            controlled = resolve_screener_ticker(normalized_instrument)
+            if controlled.match_basis == MATCH_CONTROLLED_SCREENER_CROSSWALK:
+                return controlled
+
             ticker, ambiguous, candidates = _unique_or_ambiguous(
                 screener_ticker_index.get(normalized_instrument)
             )
