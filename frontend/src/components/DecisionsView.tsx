@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { DecisionPayload, Holding } from '../types';
 import { Badge, Banner, Bar, Stat, TagChip, inr, pct, num } from './ui';
 import { comparatorFor, cycleSort } from '../utils/sort';
+import { exportDecisionsJson, exportDecisionsCsv } from '../utils/exportDecisions';
 import type { SortDir, SortState } from '../utils/sort';
 
 const CAT_COLORS: Record<string, string> = {
@@ -144,6 +145,10 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
           s="shown from authoritative Stage 1 gate state" />
       </div>
 
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, justifyContent: 'flex-end' }}>
+        <button className="btn" type="button" onClick={() => exportDecisionsJson(payload)}>Decisions JSON</button>
+        <button className="btn" type="button" onClick={() => exportDecisionsCsv(payload)}>Decisions CSV</button>
+      </div>
       <div className="grid cols-2">
         <div className="card">
           <h3>Holdings — scored & ranked <span className="tag">click header → sort · click row → detail</span></h3>
