@@ -39,7 +39,7 @@ class Hysteresis:
 
     def apply(self, instrument, raw_band, score, as_of):
         cur = self.state.get(instrument)
-        if cur is None:
+        if cur is None or cur["decision"] == "EXIT":
             self.state[instrument] = {"decision": raw_band, "score": score,
                                       "as_of": as_of.isoformat(), "pending": None}
             return raw_band
