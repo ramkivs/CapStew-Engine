@@ -159,6 +159,19 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
         decision, caps_note = apply_eligibility_caps(decision, ev["tier"], ev["critical_categories_missing"])
         trim_mode = "V" if decision == "TRIM" else None
 
+    # Freeze §6 N=2: hv.apply()/hv.bypass() above create or clear the confirmation
+    # counter AFTER `prev` was read at the top of this function, so refresh it here.
+    # The persisted previous_run is the only channel that carries the counter to the
+    # next run / process; without this refresh it restarts at 1 every run and the
+    # required second distinct as_of never arrives. Only `pending` is refreshed —
+    # decision/composite_score/as_of keep their frozen "what the previous run
+    # decided" meaning (Freeze §9.2).
+    if prev is not None:
+        pending = (hv.get_prev(instrument) or {}).get("pending")
+        prev = {k: v for k, v in prev.items() if k != "pending"}
+        if pending:
+            prev["pending"] = pending
+
     # Trim plan
     trim = None
     if decision == "TRIM" and lots:
@@ -294,7 +307,8 @@ def decide_all(foundation, policy_overrides=None, hysteresis=None, apply_hystere
     hv = hysteresis or Hysteresis()
     if history:
         for inst, st in history.items():
-            hv.seed(inst, st.get("decision"), st.get("composite_score"), st.get("as_of"))
+            hv.seed(inst, st.get("decision"), st.get("composite_score"), st.get("as_of"),
+                    st.get("pending"))
 
     holdings = [
         decide_instrument(pos, lots_by.get(pos["instrument"], []), policy, total_value, as_of,

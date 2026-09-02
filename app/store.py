@@ -65,19 +65,28 @@ class RunStore:
         return json.loads(row[0]) if row else None
 
     def previous_holdings(self):
-        """instrument -> {decision, composite_score, as_of} from the latest persisted run."""
+        """instrument -> {decision, composite_score, as_of[, pending]} from the latest run.
+
+        `pending` is the N=2 hysteresis confirmation counter that run left behind
+        (Freeze §6). It is carried only when present, so records written before
+        the counter was persisted keep resolving exactly as they did before.
+        """
         latest = self.latest_run()
         if not latest:
             return {}
         as_of = latest.get("as_of")
-        return {
-            h["instrument"]: {
+        history = {}
+        for h in latest.get("holdings", []):
+            state = {
                 "decision": h["decision"],
                 "composite_score": h["composite_score"],
                 "as_of": as_of,
             }
-            for h in latest.get("holdings", [])
-        }
+            prev = h.get("previous_run") or {}
+            if prev.get("pending"):
+                state["pending"] = prev["pending"]
+            history[h["instrument"]] = state
+        return history
 
     def list_runs(self):
         rows = self._conn.execute(

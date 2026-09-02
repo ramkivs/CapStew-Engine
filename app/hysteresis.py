@@ -35,7 +35,13 @@ class Hysteresis:
         s = self.state.get(instrument)
         if not s:
             return None
-        return {"decision": s["decision"], "composite_score": s["score"], "as_of": s["as_of"]}
+        prev = {"decision": s["decision"], "composite_score": s["score"], "as_of": s["as_of"]}
+        # Freeze §6 N=2: carry the confirmation counter when one is open. Omitted
+        # when null so the no-history/golden deterministic output is unchanged.
+        pending = s.get("pending")
+        if pending:
+            prev["pending"] = {"band": pending["band"], "count": pending["count"]}
+        return prev
 
     def apply(self, instrument, raw_band, score, as_of):
         cur = self.state.get(instrument)
@@ -71,7 +77,23 @@ class Hysteresis:
                                   "as_of": as_of.isoformat(), "pending": None}
         return decision
 
-    def seed(self, instrument, decision, score, as_of):
-        """Initialize state from a PERSISTED previous run (Freeze §6 / audit B)."""
+    def seed(self, instrument, decision, score, as_of, pending=None):
+        """Initialize state from a PERSISTED previous run (Freeze §6 / audit B).
+
+        `pending` is the optional N=2 confirmation counter carried by the
+        persisted `previous_run`. Restoring it is what lets the two consecutive
+        distinct-`as_of` observations required by Freeze §6 accumulate across
+        separate runs / process restarts instead of restarting at 1 every time.
+        Legacy records carrying only decision/composite_score/as_of restore as
+        `pending=None`, which is exactly the pre-existing behaviour.
+        """
+        restored = None
+        if isinstance(pending, dict):
+            band = pending.get("band")
+            count = pending.get("count")
+            if (band in ("HOLD", "WATCH", "TRIM", "HARVEST")
+                    and isinstance(count, int) and not isinstance(count, bool)
+                    and count >= 1):
+                restored = {"band": band, "count": count}
         self.state[instrument] = {"decision": decision, "score": score,
-                                  "as_of": as_of, "pending": None}
+                                  "as_of": as_of, "pending": restored}
