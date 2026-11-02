@@ -140,8 +140,13 @@ def write_portfolio(path):
             avg = invested / qty
             gain_pct = (value - invested) / invested * 100
             alloc = value / total_value * 100
-            first = iso(min(d for (d, _, _, _) in LEDGER[name]))
-            last = iso(max(d for (d, _, _, _) in LEDGER[name]))
+            # LEDGER keys its dates as DD-MM-YYYY strings, so min()/max() on the
+            # raw strings compare the DAY first and pick the wrong end of the
+            # range ('02-05-2026' sorts before '23-04-2026' even though 23 April
+            # comes first). Convert to date objects before comparing.
+            lot_dates = [iso(d) for (d, _, _, _) in LEDGER[name]]
+            first = min(lot_dates)
+            last = max(lot_dates)
             holding_days = (AS_OF - first).days
             w.writerow([
                 name, n_lots, f"{int(qty)}", f"{avg:.4f}", f"{invested:.2f}",
