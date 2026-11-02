@@ -733,6 +733,18 @@ try {
             Start-Sleep -Milliseconds 750
         }
 
+        # Register them as ours. If start.bat never becomes healthy and we
+        # throw, the failure-path shutdown still terminates exactly these PIDs
+        # instead of leaving them orphaned.
+        foreach ($claimedPid in $launcherPids) {
+            $claimed = Get-Process -Id $claimedPid -ErrorAction SilentlyContinue
+            if ($claimed) {
+                $script:Started += [pscustomobject]@{
+                    Label = "launcher PID $claimedPid"; Process = $claimed
+                }
+            }
+        }
+
         [void](Wait-ForHttp -Url "$Api/health" -TimeoutSec $ReadyTimeoutSec -Label 'start.bat backend')
         [void](Wait-ForHttp -Url $FrontendUrl  -TimeoutSec $ReadyTimeoutSec -Label 'start.bat interface')
         Add-Check -Name 'start.bat brings both services up' -Pass $true

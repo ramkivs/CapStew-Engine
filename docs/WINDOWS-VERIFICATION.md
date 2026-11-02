@@ -167,8 +167,10 @@ untouched. Every termination is recorded in `70-process-cleanup.csv` with its
 With `-IncludeLauncher`, the ports must be free before `start.bat` runs, so any
 PID that then appears is attributable to this execution and can safely be owned,
 verified and — if `stop.bat` leaves it behind — terminated. Ownership is claimed
-as soon as the listeners appear, before the readiness wait, so a `start.bat` that
-never becomes healthy cannot leave unattributed orphans.
+as soon as the listeners appear, before the readiness wait, and are registered
+alongside the harness's own processes, so a `start.bat` that never becomes
+healthy cannot leave unattributed orphans — the failure-path shutdown terminates
+exactly those PIDs.
 
 ## 4. What it cannot verify
 
