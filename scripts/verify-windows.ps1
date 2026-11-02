@@ -42,6 +42,13 @@ param(
     # The branch you intend to verify. Defaults to main, which is what a laptop
     # holds once this work is merged. Pass a feature-branch name to verify a PR
     # head instead.
+    # The GitHub repository this checkout must come from. Both HTTPS
+    # (https://github.com/owner/repo.git) and SSH (git@github.com:owner/repo.git)
+    # remote forms are accepted. Verification refuses to run against a checkout
+    # whose origin identifies some other repository.
+    [string]$ExpectedOwner = 'ramkivs',
+    [string]$ExpectedRepo  = 'CapStew-Engine',
+
     [string]$ExpectedBranch = 'main',
 
     # Optional strict pin against HEAD. Empty by default, which RECORDS the
@@ -88,8 +95,9 @@ $VenvPy  = Join-Path $Venv 'Scripts\python.exe'
 $DataDir = Join-Path $RepoRoot 'data'
 
 # Process bookkeeping: only these are ever stopped.
-$script:Started = @()
-$script:Checks  = New-Object System.Collections.ArrayList
+$script:Started        = @()
+$script:CleanupResults = @()
+$script:Checks         = New-Object System.Collections.ArrayList
 
 # --------------------------------------------------------------------------
 # Helpers
@@ -161,15 +169,94 @@ function Get-PortOwner {
     return $null
 }
 
-# Kills the recorded processes and their children. Never touches any other process.
+# Parses owner/repo out of an origin URL in either common Git form.
+#   https://github.com/owner/repo.git      -> owner, repo
+#   git@github.com:owner/repo.git          -> owner, repo
+#   ssh://git@github.com/owner/repo        -> owner, repo
+function Resolve-GitRemote {
+    param([AllowEmptyString()][string]$Url)
+    if (-not $Url) { return $null }
+    $m = [regex]::Match($Url.Trim(), 'github\.com[:/]+([^/:\s]+)/([^/\s#?]+?)(?:\.git)?/?$')
+    if (-not $m.Success) { return $null }
+    return [pscustomobject]@{ Owner = $m.Groups[1].Value; Repo = $m.Groups[2].Value }
+}
+
+function Test-ProcessAlive {
+    param([Parameter(Mandatory)][int]$ProcessId)
+    $proc = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if ($proc) { return $true }
+    return $false
+}
+
+# Returns the taskkill exit code and output. taskkill does not throw on failure,
+# so the old try/catch could never report one.
+function Invoke-Taskkill {
+    param([Parameter(Mandatory)][int]$ProcessId)
+    $output = & taskkill.exe /PID $ProcessId /T /F 2>&1
+    return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = ($output -join ' ') }
+}
+
+function Wait-ForExit {
+    param([Parameter(Mandatory)]$Process, [int]$TimeoutSec = 15)
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        if ($Process.HasExited) { return $true }
+        Start-Sleep -Milliseconds 300
+    }
+    return $Process.HasExited
+}
+
+# Terminates only the processes this execution started, checks the taskkill exit
+# code, and confirms the process is actually gone. With -Final it also records
+# the aggregate verdicts; called that way on both the success and failure paths.
 function Stop-StartedProcesses {
+    param([switch]$Final)
+
     foreach ($entry in $script:Started) {
         if (-not $entry.Process) { continue }
-        if ($entry.Process.HasExited) { continue }
-        Write-Host "  stopping $($entry.Label) (PID $($entry.Process.Id))"
-        try { & taskkill.exe /PID $entry.Process.Id /T /F 2>&1 | Out-Null }
-        catch { Write-Warning "could not stop $($entry.Label): $($_.Exception.Message)" }
+        $targetPid = $entry.Process.Id
+
+        if ($entry.Process.HasExited) {
+            $script:CleanupResults += [pscustomobject]@{
+                Label = $entry.Label; Pid = $targetPid; Action = 'already exited'
+                ExitCode = -1; Confirmed = $true
+            }
+            continue
+        }
+
+        Write-Host "  stopping $($entry.Label) (PID $targetPid)"
+        $kill = Invoke-Taskkill -ProcessId $targetPid
+        $gone = Wait-ForExit -Process $entry.Process -TimeoutSec 15
+        $script:CleanupResults += [pscustomobject]@{
+            Label = $entry.Label; Pid = $targetPid; Action = 'taskkill /T /F'
+            ExitCode = $kill.ExitCode; Confirmed = $gone
+        }
+        if ($kill.ExitCode -ne 0) {
+            Write-Warning "taskkill exited $($kill.ExitCode) for $($entry.Label) (PID $targetPid): $($kill.Output)"
+        }
+        if (-not $gone) {
+            Write-Warning "$($entry.Label) (PID $targetPid) is still running after taskkill"
+        }
     }
+    $script:Started = @()
+
+    $rows = @('label,pid,action,taskkill_exit_code,termination_confirmed')
+    foreach ($r in $script:CleanupResults) {
+        $rows += "$($r.Label),$($r.Pid),$($r.Action),$($r.ExitCode),$($r.Confirmed)"
+    }
+    Write-Evidence -Name '70-process-cleanup.csv' -Text ($rows -join "`r`n")
+
+    if (-not $Final) { return }
+
+    $attempted = @($script:CleanupResults | Where-Object { $_.Action -eq 'taskkill /T /F' })
+    $badExit   = @($attempted | Where-Object { $_.ExitCode -ne 0 })
+    $stillUp   = @($script:CleanupResults | Where-Object { -not $_.Confirmed })
+    Add-Check -Name 'every process this execution started has terminated' `
+              -Pass ($stillUp.Count -eq 0) `
+              -Detail "$($script:CleanupResults.Count) tracked, $($stillUp.Count) still alive"
+    Add-Check -Name 'taskkill returned 0 for every termination it attempted' `
+              -Pass ($badExit.Count -eq 0) `
+              -Detail "$($attempted.Count) taskkill call(s), $($badExit.Count) non-zero"
 }
 
 function Snapshot-DataDir {
@@ -272,7 +359,25 @@ try {
     $gitText = "branch : $branch`r`ncommit : $commit`r`nremote : $remote`r`n$engineLine`r`n`r`nstatus --porcelain:`r`n$($dirty -join "`r`n")"
     Write-Evidence -Name '02-git-state.txt' -Text $gitText
 
-    Add-Check -Name 'repository is the expected checkout' -Pass ($null -ne $remote) -Detail $remote
+    # Identity gate: refuse to verify some other repository's checkout. Both
+    # HTTPS and SSH remote forms are understood by Resolve-GitRemote.
+    if (-not $remote) { throw "No origin remote is configured in $RepoRoot." }
+
+    $ident = Resolve-GitRemote -Url $remote
+    $identText = 'unrecognised remote format'
+    if ($ident) { $identText = "$($ident.Owner)/$($ident.Repo)" }
+    Write-Evidence -Name '02b-origin-identity.txt' -Text "origin url   : $remote`r`norigin ident : $identText`r`nexpected     : $ExpectedOwner/$ExpectedRepo"
+
+    Add-Check -Name "origin identifies $ExpectedOwner/$ExpectedRepo" -Pass ($null -ne $ident) -Detail "origin: $remote"
+    if (-not $ident) {
+        throw "Could not parse the origin remote '$remote'. Expected an HTTPS or SSH github.com URL for $ExpectedOwner/$ExpectedRepo."
+    }
+
+    $sameRepo = ($ident.Owner -ieq $ExpectedOwner) -and ($ident.Repo -ieq $ExpectedRepo)
+    if (-not $sameRepo) {
+        throw "origin identifies $identText, not $ExpectedOwner/$ExpectedRepo. Refusing to run verification against an unrelated repository."
+    }
+    Write-Host "  origin verified: $identText"
     Add-Check -Name "branch is $ExpectedBranch" -Pass ($branch -eq $ExpectedBranch) -Detail "actual: $branch"
 
     $pinned = $false
@@ -411,6 +516,16 @@ try {
     Add-Check -Name 'dev server proxies /api to the engine' -Pass ($proxyJson.status -eq 'ok') `
               -Detail "via $FrontendUrl -> $BackendUrl"
 
+    # ------------------------------------------------ 5b. existing history
+    # Snapshot EVERY run that already exists before this script creates one.
+    # Those runs belong to the user; each must still be present afterwards.
+    $originalRuns = @(Invoke-Api -Path '/runs' -OutFile '39-runs-original.json')
+    $originalRunIds = @($originalRuns | ForEach-Object { $_.run_id } | Where-Object { $_ })
+    $origLines = @("pre-existing run_id(s): $($originalRunIds.Count)")
+    foreach ($id in $originalRunIds) { $origLines += "  $id" }
+    Write-Evidence -Name '39b-original-run-ids.txt' -Text ($origLines -join "`r`n")
+    Write-Host "  pre-existing runs recorded: $($originalRunIds.Count)"
+
     # --------------------------------------------------- 6. golden trilogy
     Write-Host ""
     Write-Host "[6/9] Golden trilogy"
@@ -458,10 +573,17 @@ try {
     $policyPre = Invoke-Api -Path '/policy' -OutFile '42-policy-before-restart.json'
 
     $backendEntry = $script:Started | Where-Object { $_.Label -eq 'backend' } | Select-Object -First 1
-    & taskkill.exe /PID $backendEntry.Process.Id /T /F 2>&1 | Out-Null
-    $deadline = (Get-Date).AddSeconds(30)
-    while (-not $backendEntry.Process.HasExited -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 400 }
-    Add-Check -Name 'backend stopped cleanly on request' -Pass $backendEntry.Process.HasExited
+    $restartKill = Invoke-Taskkill -ProcessId $backendEntry.Process.Id
+    $restarted   = Wait-ForExit -Process $backendEntry.Process -TimeoutSec 30
+    # Record it with the rest so the final cleanup verdicts cover it too.
+    $script:CleanupResults += [pscustomobject]@{
+        Label = 'backend (restart step)'; Pid = $backendEntry.Process.Id
+        Action = 'taskkill /T /F'; ExitCode = $restartKill.ExitCode; Confirmed = $restarted
+    }
+    $script:Started = @($script:Started | Where-Object { $_.Label -ne 'backend' })
+    Add-Check -Name 'backend stopped cleanly on request' `
+              -Pass ($restarted -and $restartKill.ExitCode -eq 0) `
+              -Detail "taskkill exit $($restartKill.ExitCode), exited=$restarted"
 
     $backendLog2 = Join-Path $Evidence '12-backend-after-restart.log'
     [void](Start-Service -Label 'backend-restarted' -FilePath $python `
@@ -472,8 +594,26 @@ try {
     Add-Check -Name 'backend is healthy again after restart' -Pass $true
 
     $runsPost = @(Invoke-Api -Path '/runs' -OutFile '43-runs-after-restart.json')
+    $postRunIds = @($runsPost | ForEach-Object { $_.run_id } | Where-Object { $_ })
     $survived = @($runsPost | Where-Object { $_.run_id -eq $runId1 }).Count -eq 1
     Add-Check -Name 'run 1 survived the restart' -Pass $survived -Detail "history now holds $(@($runsPost).Count) run(s)"
+
+    # The user's own history. Report each missing id by name; any loss fails.
+    $missingOriginal = @()
+    foreach ($id in $originalRunIds) {
+        if (@($postRunIds | Where-Object { $_ -eq $id }).Count -eq 0) { $missingOriginal += $id }
+    }
+    $presLines = @("pre-existing runs : $(@($originalRunIds).Count)",
+                   "still present     : $(@($originalRunIds).Count - @($missingOriginal).Count)",
+                   "MISSING           : $(@($missingOriginal).Count)")
+    foreach ($id in $missingOriginal) { $presLines += "  MISSING $id" }
+    Write-Evidence -Name '43b-original-run-preservation.txt' -Text ($presLines -join "`r`n")
+    foreach ($id in $missingOriginal) { Write-Warning "pre-existing run vanished: $id" }
+
+    $preserveDetail = "$(@($originalRunIds).Count) pre-existing run(s) checked"
+    if (@($missingOriginal).Count -gt 0) { $preserveDetail += "; missing: $($missingOriginal -join ', ')" }
+    Add-Check -Name 'every pre-existing run is still present after restart' `
+              -Pass (@($missingOriginal).Count -eq 0) -Detail $preserveDetail
 
     $run2 = Invoke-Api -Path '/run-sample' -Method POST -OutFile '44-run-2-after-restart.json'
     $runId2 = $run2.run_id
@@ -555,37 +695,116 @@ try {
     }
     if ($IncludeLauncher) {
         Stop-StartedProcesses
-        $script:Started = @()
         Start-Sleep -Seconds 2
+
+        # Both ports must be free before start.bat runs. Any PID that then
+        # appears on them was created by start.bat during THIS execution, which
+        # is what makes it safe for us to own, verify and, if needed, terminate.
+        $freeDeadline = (Get-Date).AddSeconds(20)
+        $preOwnerB = Get-PortOwner -Port $BackendPort
+        $preOwnerF = Get-PortOwner -Port $FrontendPort
+        while ((Get-Date) -lt $freeDeadline) {
+            if (-not $preOwnerB -and -not $preOwnerF) { break }
+            Start-Sleep -Milliseconds 750
+            $preOwnerB = Get-PortOwner -Port $BackendPort
+            $preOwnerF = Get-PortOwner -Port $FrontendPort
+        }
+        if ($preOwnerB) { throw "port $BackendPort is still held by PID $preOwnerB after shutdown; launcher processes could not be attributed to this execution" }
+        if ($preOwnerF) { throw "port $FrontendPort is still held by PID $preOwnerF after shutdown; launcher processes could not be attributed to this execution" }
 
         $launcherLog = Join-Path $Evidence '60-launcher-start.txt'
         $startBat = Join-Path $RepoRoot 'scripts\start.bat'
         & cmd.exe /c "`"$startBat`"" *> $launcherLog
+
+        # Claim ownership as soon as the listeners appear, BEFORE waiting for
+        # readiness. If start.bat never becomes healthy we still know which PIDs
+        # it created, so the failure path can clean them up rather than orphaning
+        # them.
+        $launcherPids = @()
+        $claimDeadline = (Get-Date).AddSeconds(60)
+        while ((Get-Date) -lt $claimDeadline) {
+            $launcherPids = @()
+            $ownerB = Get-PortOwner -Port $BackendPort
+            $ownerF = Get-PortOwner -Port $FrontendPort
+            if ($ownerB) { $launcherPids += $ownerB }
+            if ($ownerF) { $launcherPids += $ownerF }
+            $launcherPids = @($launcherPids | Select-Object -Unique)
+            if (@($launcherPids).Count -ge 2) { break }
+            Start-Sleep -Milliseconds 750
+        }
+
+        # Register them as ours. If start.bat never becomes healthy and we
+        # throw, the failure-path shutdown still terminates exactly these PIDs
+        # instead of leaving them orphaned.
+        foreach ($claimedPid in $launcherPids) {
+            $claimed = Get-Process -Id $claimedPid -ErrorAction SilentlyContinue
+            if ($claimed) {
+                $script:Started += [pscustomobject]@{
+                    Label = "launcher PID $claimedPid"; Process = $claimed
+                }
+            }
+        }
+
         [void](Wait-ForHttp -Url "$Api/health" -TimeoutSec $ReadyTimeoutSec -Label 'start.bat backend')
         [void](Wait-ForHttp -Url $FrontendUrl  -TimeoutSec $ReadyTimeoutSec -Label 'start.bat interface')
         Add-Check -Name 'start.bat brings both services up' -Pass $true
+        Write-Evidence -Name '60b-launcher-owned-pids.txt' `
+                       -Text "launcher-owned PID(s): $($launcherPids -join ', ')"
+        Write-Host "  launcher-owned PID(s): $($launcherPids -join ', ')"
+        Add-Check -Name 'launcher-started processes identified and owned' `
+                  -Pass (@($launcherPids).Count -ge 1) `
+                  -Detail "$(@($launcherPids).Count) PID(s) on ports $BackendPort/$FrontendPort"
 
         $stopLog = Join-Path $Evidence '61-launcher-stop.txt'
         $stopBat = Join-Path $RepoRoot 'scripts\stop.bat'
         & cmd.exe /c "`"$stopBat`"" *> $stopLog
-        $released = $true
+        # Poll until the owned PIDs are gone, not merely until the ports look
+        # free - a lingering child would otherwise go unnoticed.
         $deadline2 = (Get-Date).AddSeconds(30)
+        $survivors = @($launcherPids)
         while ((Get-Date) -lt $deadline2) {
-            $stillUp = $false
-            if (Get-PortOwner -Port $BackendPort)  { $stillUp = $true }
-            if (Get-PortOwner -Port $FrontendPort) { $stillUp = $true }
-            if (-not $stillUp) { break }
+            $survivors = @($launcherPids | Where-Object { Test-ProcessAlive -ProcessId $_ })
+            if (@($survivors).Count -eq 0) { break }
             Start-Sleep -Milliseconds 750
         }
+        $survivors = @($launcherPids | Where-Object { Test-ProcessAlive -ProcessId $_ })
+
+        Add-Check -Name 'stop.bat terminated every launcher-started process' `
+                  -Pass (@($survivors).Count -eq 0) `
+                  -Detail "$(@($launcherPids).Count) owned, $(@($survivors).Count) still alive"
+
+        $released = $true
         if (Get-PortOwner -Port $BackendPort)  { $released = $false }
         if (Get-PortOwner -Port $FrontendPort) { $released = $false }
         Add-Check -Name 'stop.bat releases both ports' -Pass $released
+
+        # Anything stop.bat left behind is still ours, so clearing it stays
+        # within "only what this execution started". Reported, not hidden.
+        foreach ($leftPid in $survivors) {
+            $kill = Invoke-Taskkill -ProcessId $leftPid
+            $gone = $false
+            $deadline3 = (Get-Date).AddSeconds(15)
+            while ((Get-Date) -lt $deadline3) {
+                if (-not (Test-ProcessAlive -ProcessId $leftPid)) { $gone = $true; break }
+                Start-Sleep -Milliseconds 300
+            }
+            $script:CleanupResults += [pscustomobject]@{
+                Label = 'launcher leftover (force-cleaned)'; Pid = $leftPid
+                Action = 'taskkill /T /F'; ExitCode = $kill.ExitCode; Confirmed = $gone
+            }
+            Write-Warning "stop.bat left PID $leftPid running; terminated it (taskkill exit $($kill.ExitCode))"
+        }
+        if (@($survivors).Count -gt 0) {
+            Add-Check -Name 'leftover launcher processes were force-cleaned' `
+                      -Pass (@($script:CleanupResults | Where-Object { $_.Label -eq 'launcher leftover (force-cleaned)' -and -not $_.Confirmed }).Count -eq 0) `
+                      -Detail "$(@($survivors).Count) leftover(s) terminated by this script"
+        }
     }
 
     # --------------------------------------------------------------- done
     Write-Host ""
     Write-Host "Shutting down"
-    Stop-StartedProcesses
+    Stop-StartedProcesses -Final
 
     $failedCount = @($script:Checks | Where-Object { $_.Result -eq 'FAIL' }).Count
     $outcome = 'ALL CHECKS PASSED'
@@ -608,7 +827,7 @@ catch {
 
     Write-Host ""
     Write-Host "Shutting down after failure"
-    Stop-StartedProcesses
+    Stop-StartedProcesses -Final
 
     Write-Summary -Outcome 'ABORTED' -FatalError $message
     exit 1

@@ -14,7 +14,8 @@ run it and the evidence directory agrees.
 ## 1. The verification script
 
 **`scripts\verify-windows.ps1`** — 615 lines, PowerShell 5.1+ (ships with Windows 10/11).
-A default run records **27 checks**; `-IncludeLauncher` makes it **28**.
+A default run records **30 checks**; `-IncludeLauncher` makes it **33** (34 if a
+leftover process had to be force-cleaned).
 
 ### Run it
 
@@ -37,12 +38,23 @@ and writes `90-error.txt`.
 |---|---|---|
 | `-RepoRoot` | parent of `scripts\` | checkout to verify |
 | `-EvidenceRoot` | `$env:USERPROFILE\CapStew-Verification` | where evidence lands |
+| `-ExpectedOwner` | `ramkivs` | origin must identify this owner |
+| `-ExpectedRepo` | `CapStew-Engine` | origin must identify this repository |
 | `-ExpectedBranch` | `main` | must match, or the run records a FAIL |
 | `-ExpectedCommit` | *(empty)* | optional strict pin; empty records `HEAD` without rejecting it |
 | `-BackendPort` / `-FrontendPort` | `8000` / `5173` | loopback ports |
 | `-ReadyTimeoutSec` | `180` | polling budget for readiness |
 | `-IncludeLauncher` | off | also exercise `start.bat` / `stop.bat` |
 | `-AllowDirtyTree` | off | proceed despite uncommitted changes |
+
+The script **refuses to run** if `origin` identifies a different repository. Both
+remote forms are accepted:
+
+```
+https://github.com/ramkivs/CapStew-Engine.git     (HTTPS)
+git@github.com:ramkivs/CapStew-Engine.git         (SSH)
+ssh://git@github.com/ramkivs/CapStew-Engine       (SSH, URL form)
+```
 
 ### Why the defaults are `main` and an empty commit pin
 
@@ -84,7 +96,8 @@ and then proves nothing that was already there was destroyed.
 %USERPROFILE%\CapStew-Verification\verify-YYYYMMDD-HHMMSS\
 ├── 00-summary.txt                     outcome, pass/fail table, processes started
 ├── 01-environment.txt                 OS, PowerShell, Python, Node, npm
-├── 02-git-state.txt                   branch, commit, remote, status --porcelain
+├── 02-git-state.txt                   branch, commit, remote, ENGINE_VERSION, status
+├── 02b-origin-identity.txt            parsed origin owner/repo vs expected
 ├── 03-ports.txt                       8000 / 5173 free or held, and by which PID
 ├── 10-backend.log                     uvicorn stdout
 ├── 10-backend.log.err                 uvicorn stderr
@@ -96,10 +109,13 @@ and then proves nothing that was already there was destroyed.
 ├── 22-proxy-health.json               GET  :5173/api/v1/health  (through the proxy)
 ├── 30-run-1.json                      POST /api/v1/run-sample   (before restart)
 ├── 31-golden-trilogy.txt              per-instrument expected vs actual
+├── 39-runs-original.json              GET  /api/v1/runs BEFORE any verification run
+├── 39b-original-run-ids.txt           the pre-existing run_ids that must survive
 ├── 40-runs-before-restart.json        GET  /api/v1/runs
 ├── 41-runs-before-restart-parsed.json parsed form of the above
 ├── 42-policy-before-restart.json      GET  /api/v1/policy
 ├── 43-runs-after-restart.json         GET  /api/v1/runs         (after restart)
+├── 43b-original-run-preservation.txt  each pre-existing run id: present or MISSING
 ├── 44-run-2-after-restart.json        POST /api/v1/run-sample   (after restart)
 ├── 45-diff.json                       GET  /api/v1/runs/{run2}/diff
 ├── 46-policy-after-restart.json       GET  /api/v1/policy
@@ -107,7 +123,9 @@ and then proves nothing that was already there was destroyed.
 ├── 51-data-after.txt                  data\ file list + SHA-256 after
 ├── 52-preservation.txt                destroyed / changed / preserved breakdown
 ├── 60-launcher-start.txt              start.bat output   (-IncludeLauncher only)
+├── 60b-launcher-owned-pids.txt        PIDs the launcher created, claimed as ours
 ├── 61-launcher-stop.txt               stop.bat output    (-IncludeLauncher only)
+├── 70-process-cleanup.csv             every termination: label, PID, taskkill exit code, confirmed
 └── 90-error.txt                       only written if the run aborted
 ```
 
@@ -117,7 +135,7 @@ and then proves nothing that was already there was destroyed.
 
 | # | Check | How |
 |---|---|---|
-| 1 | `app\main.py` present; remote and branch match; commit recorded (or pinned); working tree clean | `git rev-parse`, `git status --porcelain` |
+| 1 | `app\main.py` present; **`origin` identifies `ramkivs/CapStew-Engine`** (HTTPS or SSH); branch matches; commit recorded (or pinned); working tree clean | `git config`, `git rev-parse`, `git status --porcelain` |
 | 1b | **Checkout carries v1.2** — `ENGINE_VERSION` is `1.2.0` and both verification artefacts exist | `app\config.py`, `Test-Path` |
 | 2 | Python, Node, npm resolve; `frontend\node_modules` installed | `Get-Command`, `--version` |
 | 3 | Ports 8000 and 5173 are free before starting | `Get-NetTCPConnection` |
@@ -130,17 +148,29 @@ and then proves nothing that was already there was destroyed.
 | 10 | Run 1 appears in history | `/runs` |
 | 11 | Engine stops on request, restarts, and is healthy again | `taskkill /T`, re-poll |
 | 12 | **Run 1 survives the restart** | `/runs` after restart |
+| 12b | **Every pre-existing run is still present** — each missing `run_id` is named, and any loss fails the run | `/runs` captured *before* any verification run, compared after restart |
 | 13 | **Hysteresis `previous_run` recovered from the store** for every holding | run 2 payload |
 | 14 | **Diff links run 2 to run 1** | `/runs/{id}/diff.previous_run_id` |
 | 15 | Policy identical across the restart | JSON equality |
 | 16 | **No pre-existing file in `data\` was destroyed** | SHA-256 snapshot diff |
 | 17 | Run store grew or held, never shrank (append-only) | run counts |
 | 18 | `data\policy.yaml` override byte-identical | SHA-256 |
-| 19 | `start.bat` brings both services up; `stop.bat` releases both ports | `-IncludeLauncher` |
+| 19 | **Every process this execution started has terminated** — confirmed, not merely requested | `taskkill` exit code + `HasExited` poll |
+| 20 | **`taskkill` returned 0 for every termination it attempted** | `$LASTEXITCODE` per call |
+| 21 | `start.bat` brings both services up; **its PIDs are claimed as ours**; `stop.bat` terminates each of them and releases both ports | `-IncludeLauncher` |
 
 It stops **only the PIDs it started**, via `taskkill /PID <pid> /T /F`. It never
 kills by name, so an unrelated `python.exe` or `node.exe` on your machine is
-untouched.
+untouched. Every termination is recorded in `70-process-cleanup.csv` with its
+`taskkill` exit code and whether the process was confirmed gone.
+
+With `-IncludeLauncher`, the ports must be free before `start.bat` runs, so any
+PID that then appears is attributable to this execution and can safely be owned,
+verified and — if `stop.bat` leaves it behind — terminated. Ownership is claimed
+as soon as the listeners appear, before the readiness wait, and are registered
+alongside the harness's own processes, so a `start.bat` that never becomes
+healthy cannot leave unattributed orphans — the failure-path shutdown terminates
+exactly those PIDs.
 
 ## 4. What it cannot verify
 
