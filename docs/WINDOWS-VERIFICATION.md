@@ -13,7 +13,8 @@ run it and the evidence directory agrees.
 
 ## 1. The verification script
 
-**`scripts\verify-windows.ps1`** — 574 lines, PowerShell 5.1+ (ships with Windows 10/11).
+**`scripts\verify-windows.ps1`** — 615 lines, PowerShell 5.1+ (ships with Windows 10/11).
+A default run records **27 checks**; `-IncludeLauncher` makes it **28**.
 
 ### Run it
 
@@ -36,12 +37,31 @@ and writes `90-error.txt`.
 |---|---|---|
 | `-RepoRoot` | parent of `scripts\` | checkout to verify |
 | `-EvidenceRoot` | `$env:USERPROFILE\CapStew-Verification` | where evidence lands |
-| `-ExpectedBranch` | `arena/fed5107a-capstew-engine` | must match, or the run aborts |
-| `-ExpectedCommit` | `96299d0` | prefix match against `HEAD` |
+| `-ExpectedBranch` | `main` | must match, or the run records a FAIL |
+| `-ExpectedCommit` | *(empty)* | optional strict pin; empty records `HEAD` without rejecting it |
 | `-BackendPort` / `-FrontendPort` | `8000` / `5173` | loopback ports |
 | `-ReadyTimeoutSec` | `180` | polling budget for readiness |
 | `-IncludeLauncher` | off | also exercise `start.bat` / `stop.bat` |
 | `-AllowDirtyTree` | off | proceed despite uncommitted changes |
+
+### Why the defaults are `main` and an empty commit pin
+
+`-ExpectedBranch` defaults to **`main`** because that is the branch a laptop
+holds once this work is merged. Verify a PR head instead by passing
+`-ExpectedBranch arena/fed5107a-capstew-engine`.
+
+`-ExpectedCommit` defaults to **empty** on purpose. A hardcoded default SHA is
+self-defeating: the commit that sets it changes `HEAD` and instantly makes it
+stale, so the harness would reject the very checkout it shipped in. With the pin
+empty the script records `HEAD` in `02-git-state.txt` and instead proves the
+checkout carries this release by **substance**:
+
+- `ENGINE_VERSION` in `app\config.py` is `1.2.0`
+- `scripts\verify-windows.ps1` and `docs\WINDOWS-VERIFICATION.md` are present
+
+An old or wrong checkout fails those. To pin an exact release, pass
+`-ExpectedCommit <sha>` (a prefix is enough) — that adds a strict match as a
+further check rather than replacing the substance checks.
 
 ### Prerequisites
 
@@ -97,7 +117,8 @@ and then proves nothing that was already there was destroyed.
 
 | # | Check | How |
 |---|---|---|
-| 1 | `app\main.py` present; remote, branch and commit match; working tree clean | `git rev-parse`, `git status --porcelain` |
+| 1 | `app\main.py` present; remote and branch match; commit recorded (or pinned); working tree clean | `git rev-parse`, `git status --porcelain` |
+| 1b | **Checkout carries v1.2** — `ENGINE_VERSION` is `1.2.0` and both verification artefacts exist | `app\config.py`, `Test-Path` |
 | 2 | Python, Node, npm resolve; `frontend\node_modules` installed | `Get-Command`, `--version` |
 | 3 | Ports 8000 and 5173 are free before starting | `Get-NetTCPConnection` |
 | 4 | Both services start | `Start-Process`, PIDs recorded |

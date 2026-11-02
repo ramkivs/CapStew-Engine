@@ -39,8 +39,16 @@ param(
     # the repository stays clean.
     [string]$EvidenceRoot,
 
-    [string]$ExpectedBranch = 'arena/fed5107a-capstew-engine',
-    [string]$ExpectedCommit = '96299d0',
+    # The branch you intend to verify. Defaults to main, which is what a laptop
+    # holds once this work is merged. Pass a feature-branch name to verify a PR
+    # head instead.
+    [string]$ExpectedBranch = 'main',
+
+    # Optional strict pin against HEAD. Empty by default, which RECORDS the
+    # commit without rejecting it. A hardcoded default SHA is self-defeating:
+    # the commit that sets it changes HEAD and immediately makes it stale. The
+    # substance check below is what actually catches a wrong or old checkout.
+    [string]$ExpectedCommit = '',
 
     [int]$BackendPort  = 8000,
     [int]$FrontendPort = 5173,
@@ -260,12 +268,36 @@ try {
     $dirty  = (& git -C $RepoRoot status --porcelain)
     $remote = (& git -C $RepoRoot config --get remote.origin.url)
 
-    $gitText = "branch : $branch`r`ncommit : $commit`r`nremote : $remote`r`n`r`nstatus --porcelain:`r`n$($dirty -join "`r`n")"
+    $engineLine = (Select-String -Path (Join-Path $RepoRoot 'app\config.py') -Pattern '^ENGINE_VERSION').Line
+    $gitText = "branch : $branch`r`ncommit : $commit`r`nremote : $remote`r`n$engineLine`r`n`r`nstatus --porcelain:`r`n$($dirty -join "`r`n")"
     Write-Evidence -Name '02-git-state.txt' -Text $gitText
 
     Add-Check -Name 'repository is the expected checkout' -Pass ($null -ne $remote) -Detail $remote
     Add-Check -Name "branch is $ExpectedBranch" -Pass ($branch -eq $ExpectedBranch) -Detail "actual: $branch"
-    Add-Check -Name "commit starts with $ExpectedCommit" -Pass ($commit.StartsWith($ExpectedCommit)) -Detail "actual: $commit"
+
+    $pinned = $false
+    if ($ExpectedCommit) { $pinned = $commit.StartsWith($ExpectedCommit) }
+    if ($ExpectedCommit) {
+        Add-Check -Name "commit starts with $ExpectedCommit" -Pass $pinned -Detail "actual: $commit"
+    }
+    if (-not $ExpectedCommit) {
+        Add-Check -Name 'commit recorded (no -ExpectedCommit pin supplied)' `
+                  -Pass ($commit.Length -ge 7) -Detail "HEAD: $commit"
+    }
+
+    # Substance check. A SHA cannot be pinned by default without going stale the
+    # moment it is committed, so verify the checkout actually CARRIES this
+    # release instead: the engine version stamp plus the v1.2 artefacts. This
+    # rejects an old or wrong checkout without depending on an unknowable SHA.
+    $configPath = Join-Path $RepoRoot 'app\config.py'
+    $configText = Get-Content -Raw -Path $configPath
+    $versionOk = $configText -match 'ENGINE_VERSION\s*=\s*"1\.2\.0"'
+    Add-Check -Name 'checkout carries the v1.2 engine (ENGINE_VERSION 1.2.0)' -Pass $versionOk `
+              -Detail 'supply -ExpectedCommit <sha> to pin an exact release'
+
+    $harness = Test-Path (Join-Path $RepoRoot 'scripts\verify-windows.ps1')
+    $guide   = Test-Path (Join-Path $RepoRoot 'docs\WINDOWS-VERIFICATION.md')
+    Add-Check -Name 'v1.2 verification artefacts present' -Pass ($harness -and $guide)
 
     $clean = (@($dirty).Count -eq 0)
     if (-not $clean) {

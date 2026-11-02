@@ -2,7 +2,7 @@
 
 **Repository:** `ramkivs/CapStew-Engine`
 **Branch:** `arena/fed5107a-capstew-engine` (base `ffdf9cba`)
-**Commits:** `58e36e5` (reliability corrections) · `e7ba3ea` (fixture date-range fix) · `7ff5c93`, `96299d0` (report) · Windows verification harness — all pushed
+**Commits:** `58e36e5` (reliability corrections) · `e7ba3ea` (fixture date-range fix) · `7ff5c93`, `96299d0` (report) · `4389086` (Windows verification harness) — all pushed
 **Companion:** [`docs/WINDOWS-VERIFICATION.md`](WINDOWS-VERIFICATION.md) — the PowerShell harness, its evidence layout, and the residual browser checks
 **Scope:** dependable **personal, single-user, locally-hosted Windows** application.
 No multi-tenant, SaaS, cloud, orchestration, or governance machinery was introduced.
@@ -108,7 +108,7 @@ They were **documented rather than deleted**: each mirrors a signed D-05…D-14 
 | FIX-21 | `ENGINE_VERSION` `0.3.1-phase3` → `1.2.0`, matching the `v1.0.0`/`v1.1.0` tags. `test_decision.py` now pins the constant instead of a stale `startswith("0.3")`. | `app/config.py`, `tests/test_decision.py` |
 | FIX-22 | `scripts/start.bat` + `stop.bat`: loopback-only startup, first-run venv/`npm install`, health-gated browser launch, port-conflict detection. | `scripts/start.bat`, `scripts/stop.bat` |
 | FIX-23 | README corrected: real test counts, loopback run commands, Windows quick-start. | `README.md` |
-| FIX-24 | `scripts/verify-windows.ps1` — 19-check local verification harness: repo/branch/commit/tree state, prerequisites, port availability, loopback startup, poll-until-ready, health, app shell, `/api` proxy, golden trilogy, restart with previous-run recovery and diff, SHA-256 preservation of `data\`, optional `start.bat`/`stop.bat` exercise. Timestamped evidence directory; stops only the PIDs it started. | `scripts/verify-windows.ps1` |
+| FIX-24 | `scripts/verify-windows.ps1` — 27-check local verification harness: repo/branch/commit/tree state, prerequisites, port availability, loopback startup, poll-until-ready, health, app shell, `/api` proxy, golden trilogy, restart with previous-run recovery and diff, SHA-256 preservation of `data\`, optional `start.bat`/`stop.bat` exercise. Timestamped evidence directory; stops only the PIDs it started. | `scripts/verify-windows.ps1` |
 | FIX-25 | Four of the six §F manual UI items automated with the existing vitest/jsdom setup — no new framework. Both files proven to fail against the pre-fix code. Frontend suite 26 → 38. | `frontend/src/components/WeightsView.test.tsx`, `HoldingDetail.test.tsx` |
 
 ---
@@ -301,7 +301,7 @@ bash scripts\make_manifest.sh
 Full instructions, the evidence-directory layout, and the coverage matrix are in
 [`docs/WINDOWS-VERIFICATION.md`](WINDOWS-VERIFICATION.md). In brief:
 
-`scripts\verify-windows.ps1` runs 19 automated checks — repository state,
+`scripts\verify-windows.ps1` runs 27 automated checks (28 with `-IncludeLauncher`) — repository state,
 prerequisites, port availability, loopback startup, poll-until-ready (never a
 fixed sleep), health, app shell, the `/api` proxy, the golden trilogy, run
 history, a full restart with previous-run recovery and diff, byte-level
