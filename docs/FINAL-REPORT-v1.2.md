@@ -2,7 +2,7 @@
 
 **Repository:** `ramkivs/CapStew-Engine`
 **Branch:** `arena/fed5107a-capstew-engine` (base `ffdf9cba`)
-**Commits:** `58e36e5` (corrections), `e7ba3ea` (fixture date fix) — pushed
+**Commits:** `58e36e5` (reliability corrections) · `e7ba3ea` (fixture date-range fix) · `7ff5c93` (this report) — all pushed
 **Scope:** dependable **personal, single-user, locally-hosted Windows** application.
 No multi-tenant, SaaS, cloud, orchestration, or governance machinery was introduced.
 
