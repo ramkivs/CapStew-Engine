@@ -4,9 +4,9 @@ Portfolio discipline · valuation · tax · risk.
 
 - **Phase 1 (done):** data foundation — parsers → normalization → reconciliation (G0) → per-lot FIFO → canonical payload, with the determinism hash. No decision logic.
 - **Phase 2 (done):** the decision engine — G0–G4 gates → Stage-2 scorer → confidence → hysteresis → TRIM-S/TRIM-V → `reason_tree`/`why_now` → DecisionPayload.
-- **Phase 2 audit: PASSED — no known open audit findings** (table below; the suite has since grown from 111 to 554 backend tests).
+- **Phase 2 audit: PASSED — no known open audit findings** (table below; the suite has since grown from 111 to 557 backend tests).
 - **Phase 3:** tax-year subsystem (S.74 set-off, exemption, carry-forward, FIFO sell matching, tax-aware sequencing) + run history/`diff` + provenance completion.
-- **v1.2 (this build): reliability corrections for local single-user use** — path-traversal and unsigned-policy-write fixes, mtime-independent determinism, hysteresis state persisted across restarts, append-only run store, a uniform API error envelope, live configuration keys, and a first frontend test suite. **554 backend + 26 frontend tests green; `tsc --noEmit` and the production build clean.**
+- **v1.2 (this build): reliability corrections for local single-user use** — path-traversal and unsigned-policy-write fixes, mtime-independent determinism, hysteresis state persisted across restarts, append-only run store, a uniform API error envelope, live configuration keys, and a first frontend test suite. **557 backend + 26 frontend tests green; `tsc --noEmit` and the production build clean.** Full account of what changed, what was verified, and what remains: [`docs/FINAL-REPORT-v1.2.md`](docs/FINAL-REPORT-v1.2.md).
 
 ## Status
 
@@ -57,7 +57,7 @@ app/
   main.py        FastAPI endpoints
 policy/policy.yaml        D-01…D-15 (signed in Freeze §14; operational serialization only)
 fixtures/                 generated CSV fixtures (golden trilogy embedded) + sold_sample.csv
-tests/                    554 backend tests (unit · gates · scoring · confidence · trim · hysteresis · decision · audit · policy · tax · diff · API · security · determinism)
+tests/                    557 backend tests (unit · gates · scoring · confidence · trim · hysteresis · decision · audit · policy · tax · diff · API · security · determinism)
 scripts/hash_engine.py    cross-process determinism probe
 ```
 
@@ -80,7 +80,7 @@ Your runs are stored in `data\\engine.db`; committed policies are backed up to
 python -m venv .venv && . .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python fixtures/generate_fixtures.py fixtures    # regenerate fixtures (byte-identical)
-pytest -q                                        # 554 backend tests
+pytest -q                                        # 557 backend tests
 uvicorn app.main:app --host 127.0.0.1 --port 8000  # API — loopback, single user
 
 cd frontend
