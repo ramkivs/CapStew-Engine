@@ -22,14 +22,54 @@ def _f2(d: Decimal) -> float:
     return float(d.quantize(Decimal("0.01"))) if d is not None else None
 
 
-def _file_as_of(path):
-    import os
-    from datetime import datetime as _dt
-    mtime = os.path.getmtime(path)
-    return _dt.fromtimestamp(mtime).strftime("%Y-%m-%d")
+DATA_SOURCES = ("portfolio", "screener", "ledger")
 
 
-def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_id=None):
+class DataAsOfError(ValueError):
+    """A declared data-as-of date is missing or not a valid ISO date."""
+
+
+def _iso_date(source, raw):
+    """Validate a declared data date. Raises DataAsOfError with a usable message."""
+    try:
+        return date.fromisoformat(str(raw).strip()).isoformat()
+    except (TypeError, ValueError) as exc:
+        raise DataAsOfError(
+            f"{source}: data_as_of must be an ISO date (YYYY-MM-DD), got {raw!r}"
+        ) from exc
+
+
+def resolve_data_as_of(as_of, data_as_of=None):
+    """Deterministic per-source data dates.
+
+    Deliberately NOT derived from filesystem mtime. mtime changes on clone,
+    copy, unzip, download and `touch`, and it was inside the hashed payload —
+    so byte-identical inputs produced different content_hash values on
+    different checkouts, breaking the Determinism Guarantee (Freeze §8).
+
+    The data date is an INPUT, not an observation of the filesystem:
+      * a declared per-source date (or one date for all three) is used as given;
+      * otherwise the data is asserted current as of the run's `as_of`.
+    This keeps results reproducible and makes staleness meaningful — it now
+    fires when the caller declares genuinely older data, instead of never
+    firing because a fresh checkout always resets mtime to today.
+    """
+    default = as_of.isoformat()
+    declared = {}
+    if isinstance(data_as_of, str):
+        declared = dict.fromkeys(DATA_SOURCES, data_as_of)
+    elif isinstance(data_as_of, dict):
+        declared = {k: v for k, v in data_as_of.items() if k in DATA_SOURCES and v}
+    elif data_as_of not in (None, ""):
+        raise DataAsOfError(
+            f"data_as_of must be an ISO date or a mapping of {DATA_SOURCES}, "
+            f"got {type(data_as_of).__name__}"
+        )
+    return {key: _iso_date(key, declared.get(key) or default) for key in DATA_SOURCES}
+
+
+def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_id=None,
+                   data_as_of=None):
     policy = load_policy()
     ltcg_days = get_ltcg_period_days(policy)
     tolerance = Decimal(str(get_recon_tolerance(policy)))
@@ -82,12 +122,8 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
                 "message": f"{p['instrument']!r} not in screener universe — valuation/quality inputs unavailable",
             })
 
-    # 6 — staleness (files older than N days vs as_of)
-    data_as_of = {
-        "portfolio": _file_as_of(portfolio_path),
-        "screener": _file_as_of(screener_path),
-        "ledger": _file_as_of(ledger_path),
-    }
+    # 6 — staleness (declared data dates older than N days vs as_of)
+    data_as_of = resolve_data_as_of(as_of, data_as_of)
     stale_files = []
     for key, file_as_of in data_as_of.items():
         days_behind = (as_of - date.fromisoformat(file_as_of)).days
@@ -151,10 +187,10 @@ def run_foundation(portfolio_path, screener_path, ledger_path, as_of=None, run_i
 
 
 def run_engine(portfolio_path, screener_path, ledger_path, as_of=None, run_id=None,
-               policy_overrides=None, hysteresis=None):
+               policy_overrides=None, hysteresis=None, data_as_of=None):
     """Foundation + Phase 2 decision engine → DecisionPayload."""
     foundation = run_foundation(portfolio_path, screener_path, ledger_path,
-                                as_of=as_of, run_id=run_id)
+                                as_of=as_of, run_id=run_id, data_as_of=data_as_of)
     return decide_on_foundation(foundation, policy_overrides=policy_overrides,
                                 hysteresis=hysteresis, apply_hysteresis=True)
 

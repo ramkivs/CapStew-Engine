@@ -193,7 +193,7 @@ def test_invalid_generated_payload_returns_generic_500(monkeypatch):
     response = client.post("/api/v1/run", files=_files())
 
     assert response.status_code == 500
-    error = response.json()["detail"]["error"]
+    error = response.json()["error"]   # uniform envelope (architecture §11.6)
     assert error["code"] == "INTERNAL_ERROR"
     assert error["severity"] == "blocking"
     assert "schema" not in error["code"].lower()

@@ -62,8 +62,12 @@ def test_required_contract_fields_present(foundation):
 
 
 def test_decision_payload_audit_fields(foundation):
+    from app import config
+
     p = _run()
-    assert p["engine_version"].startswith("0.3")
+    # Pins the reported version to the single source of truth rather than a
+    # hardcoded prefix, so it cannot silently go stale again.
+    assert p["engine_version"] == config.ENGINE_VERSION
     assert p["policy_version"] == 1
     assert p["input_hash"] == foundation["content_hash"]
     assert p["content_hash"]

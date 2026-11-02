@@ -108,7 +108,7 @@ def iso(dd_mm_yyyy: str) -> date:
 def write_ledger(path):
     header = ["Instrument", "Qty.", "Buy Price", "LTP", "P&L", "Invested", "Curr value", "Trade Date"]
     with open(path, "w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
+        w = csv.writer(fh, lineterminator="\n")
         w.writerow(header)
         for name, lots in LEDGER.items():
             for (d, q, b, ltp) in lots:
@@ -134,14 +134,19 @@ def write_portfolio(path):
         rows.append([name, len(lots), qty, invested, value, invested, value])
 
     with open(path, "w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
+        w = csv.writer(fh, lineterminator="\n")
         w.writerow(header)
         for (name, n_lots, qty, invested, value, _, _) in rows:
             avg = invested / qty
             gain_pct = (value - invested) / invested * 100
             alloc = value / total_value * 100
-            first = iso(min(d for (d, _, _, _) in LEDGER[name]))
-            last = iso(max(d for (d, _, _, _) in LEDGER[name]))
+            # LEDGER keys its dates as DD-MM-YYYY strings, so min()/max() on the
+            # raw strings compare the DAY first and pick the wrong end of the
+            # range ('02-05-2026' sorts before '23-04-2026' even though 23 April
+            # comes first). Convert to date objects before comparing.
+            lot_dates = [iso(d) for (d, _, _, _) in LEDGER[name]]
+            first = min(lot_dates)
+            last = max(lot_dates)
             holding_days = (AS_OF - first).days
             w.writerow([
                 name, n_lots, f"{int(qty)}", f"{avg:.4f}", f"{invested:.2f}",
@@ -159,7 +164,7 @@ def write_screener(path):
               "PE Premium vs Sub-sector", "PB Premium vs Sub-sector",
               "DII Holding Change 3M", "FII Holding Change 3M"]
     with open(path, "w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
+        w = csv.writer(fh, lineterminator="\n")
         w.writerow(header)
         for row in SCREENER:
             w.writerow(row)

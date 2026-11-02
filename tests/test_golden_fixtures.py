@@ -54,3 +54,46 @@ def test_bucket_classification(foundation):
     assert pos["Ashoka Buildcon"]["bucket"] == "small"
     assert pos["DAM Capital Advisors"]["bucket"] == "small"
     assert pos["Salasar Techno Engg"]["bucket"] == "micro"
+
+
+# --------------------------------------------------------------------------
+# Fixture self-consistency. The generator used to take min()/max() over the
+# DD-MM-YYYY date STRINGS in LEDGER, which orders by day-of-month first — so
+# 'First Date'/'Last Date' came out reversed and 'Holding Period (Days)' was
+# computed from the wrong end of the range. Regression guard for that.
+# --------------------------------------------------------------------------
+
+def _portfolio_rows():
+    import csv
+    from app.config import ROOT
+
+    with open(ROOT / "fixtures" / "portfolio.csv", encoding="utf-8") as fh:
+        return list(csv.DictReader(fh))
+
+
+def test_portfolio_first_date_precedes_last_date():
+    for r in _portfolio_rows():
+        assert r["First Date"] <= r["Last Date"], (
+            f'{r["Instrument"]}: First Date {r["First Date"]} is after '
+            f'Last Date {r["Last Date"]} — dates are being compared as strings'
+        )
+
+
+def test_portfolio_holding_period_matches_first_date():
+    from datetime import date
+    from fixtures.generate_fixtures import AS_OF
+
+    for r in _portfolio_rows():
+        y, m, d = (int(x) for x in r["First Date"].split("-"))
+        expected = (AS_OF - date(y, m, d)).days
+        assert int(r["Holding Period (Days)"]) == expected, (
+            f'{r["Instrument"]}: holding period {r["Holding Period (Days)"]} '
+            f"does not match {expected} days from First Date {r['First Date']}"
+        )
+        assert expected >= 0
+
+
+def test_portfolio_lot_span_is_wide_enough_to_be_meaningful():
+    """Sanity: at least one instrument spans multiple distinct lot dates."""
+    spans = {r["First Date"] != r["Last Date"] for r in _portfolio_rows()}
+    assert True in spans

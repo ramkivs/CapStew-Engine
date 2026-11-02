@@ -1,12 +1,21 @@
 """Engine-level constants and the name→ticker symbol map (Phase 1)."""
 from pathlib import Path
 
-ENGINE_VERSION = "0.3.1-phase3"
-PHASE = "Phase 3 — tax-year subsystem + run history/diff + provenance (UI contract fields)"
+# Release lineage: v1.0.0 (methodology freeze, Phases 1-3) and v1.1.0 (CR-001..
+# CR-012B) are tagged in Git. This build adds the reliability corrections
+# (security, determinism, hysteresis persistence, config consistency), so it is
+# the next release in that series. It participates in content_hash (Freeze §8:
+# same inputs + same policy + same engine version => identical hash).
+ENGINE_VERSION = "1.2.0"
+PHASE = ("Phase 3 engine + v1.2 reliability corrections (security, determinism, "
+         "hysteresis persistence, config consistency)")
 
 ROOT = Path(__file__).resolve().parent.parent
-POLICY_PATH = ROOT / "policy" / "policy.yaml"
-STORE_PATH = ROOT / "data" / "engine.db"   # append-only run store (ADR-4)
+POLICY_PATH = ROOT / "policy" / "policy.yaml"      # shipped, signed D-01…D-15 defaults
+DATA_DIR = ROOT / "data"                            # the ONLY directory the app writes to
+USER_POLICY_PATH = DATA_DIR / "policy.yaml"         # user's committed policy overrides
+STORE_PATH = DATA_DIR / "engine.db"                 # append-only run store (ADR-4)
+BACKUP_DIR = DATA_DIR / "backups"                   # local backup destination
 
 NORMALIZATION_VERSION = "1.0"   # date/symbol normalization lineage
 CALCULATION_VERSION = "2.1"     # scoring/decision calculation lineage (+ tax calc v1)

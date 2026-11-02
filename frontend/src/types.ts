@@ -55,38 +55,50 @@ export interface Trim {
   rho?: number;
 }
 
+/**
+ * A scored holding. When G0 blocks an instrument the backend emits a
+ * NO-DECISION holding that carries only the identity, gate, reason and review
+ * fields — the scored/sizing/lots fields below are then absent. Every field
+ * that a NO-DECISION holding omits is optional so the compiler forces each
+ * read site to guard it (this crash actually shipped: the Decisions table threw
+ * on the first blocked holding and blanked the screen).
+ */
 export interface Holding {
   instrument: string;
   ticker: string | null;
   bucket: string | null;
-  alloc_pct: number | null;
-  gain_pct: number | null;
-  current_value: number | null;
-  qty_held: number | null;
-  pledge_pct: number | null;
+  alloc_pct?: number | null;
+  gain_pct?: number | null;
+  current_value?: number | null;
+  qty_held?: number | null;
+  pledge_pct?: number | null;
   decision: Decision;
   composite_score: number | null;
   confidence: number | null;
   confidence_breakdown: Record<string, number> | null;
-  subscores: SubScores;
+  subscores: SubScores | null;
   stage1: Stage1;
   evidence: Evidence | null;
   primary_drivers: string[];
   watch_flags: string[];
   behavioral_flags: string[];
-  behavioral: { flag: string; requires_reunderwrite: boolean; blocks_adds: boolean };
+  behavioral?: { flag: string; requires_reunderwrite: boolean; blocks_adds: boolean };
   trim: Trim | null;
   tax_status: {
     mixed_ltcg: boolean;
     oldest_lot_days_to_ltcg: number | null;
     ltcg_eligible_lots: number;
   } | null;
-  data_completeness: Record<string, boolean>;
-  data_quality: Record<string, string>;
-  lots: Lot[];
+  data_completeness?: Record<string, boolean>;
+  data_quality?: Record<string, string>;
+  lots?: Lot[];
   reason_tree: { decision_path: string; stage1: Record<string, unknown>; stage2: Record<string, unknown> };
   why_now: { primary_trigger: string; contributors: { label: string; value: number; weight: number }[] };
-  previous_run: { decision: string; composite_score: number | null; as_of: string } | null;
+  previous_run: {
+    decision: string; composite_score: number | null; as_of: string;
+    /** Freeze §6 N=2 confirmation counter carried across runs / restarts. */
+    pending?: { band: string; count: number };
+  } | null;
   next_review_date: string | null;
 }
 
@@ -139,6 +151,12 @@ export interface DecisionPayload {
 export interface RunListItem {
   run_id: string; as_of: string; engine_version: string; policy_version: number;
   input_hash: string; content_hash: string; created_at: string;
+  holdings_count: number; gates_fired: string[];
+}
+
+/** Uniform error envelope (architecture §11.6). */
+export interface ApiError {
+  error: { code: string; severity: string; message: string; details?: unknown };
 }
 
 export interface RunDiff {

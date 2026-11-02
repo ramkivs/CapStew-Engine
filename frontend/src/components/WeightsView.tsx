@@ -35,6 +35,7 @@ export function WeightsView({ policy, previewActive, onWhatIf, onCommit }: {
   }
 
   async function commit() {
+    if (total !== 100) { setCommitted(`weights must total 100 (currently ${total})`); return; }
     await onCommit(weights);
     setCommitted(`policy v${(policy?.policy_version ?? 0) + 1} committed`);
   }
@@ -56,9 +57,9 @@ export function WeightsView({ policy, previewActive, onWhatIf, onCommit }: {
           </div>
         ))}
         <div className="cfg" style={{ borderBottom: 'none', marginTop: 6 }}>
-          <div className="lbl"><b>Total</b><small>must sum &gt; 0</small></div>
-          <div className="bar"><i style={{ width: `${Math.min(total, 100)}%`, background: total > 0 ? 'var(--green)' : 'var(--red)' }} /></div>
-          <div className="val" style={{ color: total > 0 ? 'var(--green)' : 'var(--red)' }}>{total}%</div>
+          <div className="lbl"><b>Total</b><small>must equal 100 (D-09)</small></div>
+          <div className="bar"><i style={{ width: `${Math.min(total, 100)}%`, background: total === 100 ? 'var(--green)' : 'var(--red)' }} /></div>
+          <div className="val" style={{ color: total === 100 ? 'var(--green)' : 'var(--red)' }}>{total}%</div>
         </div>
         <div style={{ marginTop: 12, display: 'flex', gap: 10, alignItems: 'center' }}>
           <button className="btn primary" onClick={commit}>Commit policy</button>

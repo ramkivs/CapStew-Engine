@@ -12,6 +12,11 @@ from pathlib import Path
 from . import config
 from .schema import validate_decision_payload
 
+
+class RunStoreError(RuntimeError):
+    """Raised when an operation would violate the append-only run store."""
+
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     run_id TEXT PRIMARY KEY,
@@ -35,23 +40,33 @@ class RunStore:
         self._conn.commit()
 
     def save_run(self, payload, *, validate=False):
+        """Persist a run. Runs are immutable: a duplicate run_id is an error.
+
+        This used to be INSERT OR REPLACE, which silently overwrote an existing
+        audit record — the opposite of the append-only guarantee (ADR-4).
+        """
         if validate:
             validate_decision_payload(payload)
-        self._conn.execute(
-            "INSERT OR REPLACE INTO runs "
-            "(run_id, as_of, engine_version, policy_version, input_hash, content_hash, payload_json, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?)",
-            (
-                payload["run_id"],
-                payload["as_of"],
-                payload["engine_version"],
-                payload.get("policy_version"),
-                payload.get("input_hash"),
-                payload["content_hash"],
-                json.dumps(payload, sort_keys=True, ensure_ascii=False),
-                datetime.now(timezone.utc).isoformat(),
-            ),
-        )
+        try:
+            self._conn.execute(
+                "INSERT INTO runs "
+                "(run_id, as_of, engine_version, policy_version, input_hash, content_hash, "
+                "payload_json, created_at) VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    payload["run_id"],
+                    payload["as_of"],
+                    payload["engine_version"],
+                    payload.get("policy_version"),
+                    payload.get("input_hash"),
+                    payload["content_hash"],
+                    json.dumps(payload, sort_keys=True, ensure_ascii=False),
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+        except sqlite3.IntegrityError as exc:
+            raise RunStoreError(
+                f"run {payload['run_id']!r} already exists — the run store is append-only"
+            ) from exc
         self._conn.commit()
 
     def get_run(self, run_id):
@@ -65,27 +80,57 @@ class RunStore:
         return json.loads(row[0]) if row else None
 
     def previous_holdings(self):
-        """instrument -> {decision, composite_score, as_of} from the latest persisted run."""
+        """instrument -> {decision, composite_score, as_of[, pending]} from the latest run.
+
+        `pending` is the N=2 hysteresis confirmation counter that run left behind
+        (Freeze §6). It is carried only when present, so records written before
+        the counter was persisted keep resolving exactly as they did before.
+        """
         latest = self.latest_run()
         if not latest:
             return {}
         as_of = latest.get("as_of")
-        return {
-            h["instrument"]: {
+        history = {}
+        for h in latest.get("holdings", []):
+            state = {
                 "decision": h["decision"],
                 "composite_score": h["composite_score"],
                 "as_of": as_of,
             }
-            for h in latest.get("holdings", [])
-        }
+            prev = h.get("previous_run") or {}
+            if prev.get("pending"):
+                state["pending"] = prev["pending"]
+            history[h["instrument"]] = state
+        return history
 
     def list_runs(self):
         rows = self._conn.execute(
-            "SELECT run_id, as_of, engine_version, policy_version, input_hash, content_hash, created_at "
-            "FROM runs ORDER BY created_at DESC").fetchall()
-        cols = ("run_id", "as_of", "engine_version", "policy_version",
-                "input_hash", "content_hash", "created_at")
-        return [dict(zip(cols, r)) for r in rows]
+            "SELECT run_id, as_of, engine_version, policy_version, input_hash, content_hash, "
+            "created_at, payload_json FROM runs ORDER BY created_at DESC").fetchall()
+        out = []
+        for (run_id, as_of, engine_version, policy_version, input_hash, content_hash,
+             created_at, payload_json) in rows:
+            try:
+                holdings = json.loads(payload_json).get("holdings", [])
+            except (TypeError, ValueError):
+                holdings = []
+            out.append({
+                "run_id": run_id,
+                "as_of": as_of,
+                "engine_version": engine_version,
+                "policy_version": policy_version,
+                "input_hash": input_hash,
+                "content_hash": content_hash,
+                "created_at": created_at,
+                "holdings_count": len(holdings),
+                "gates_fired": [
+                    h.get("stage1", {}).get("winning_gate")
+                    for h in holdings
+                    if h.get("stage1", {}).get("fired")
+                    and h.get("stage1", {}).get("winning_gate")
+                ],
+            })
+        return out
 
     def count(self):
         return self._conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]

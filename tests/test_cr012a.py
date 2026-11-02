@@ -189,12 +189,13 @@ def test_authorized_dimension_set_matches_scoring_weight_keys():
 
 def test_policy_yaml_not_mutated_by_scenarios(tmp_path, monkeypatch):
     import yaml
-    import app.policy as pol
+    import app.config as cfg
 
     real_policy = load_policy()
     shadow_path = tmp_path / "policy.yaml"
     shadow_path.write_text(yaml.safe_dump(real_policy))
-    monkeypatch.setattr(pol, "POLICY_PATH", shadow_path)
+    monkeypatch.setattr(cfg, "POLICY_PATH", shadow_path)
+    monkeypatch.setattr(cfg, "USER_POLICY_PATH", tmp_path / "user-policy.yaml")
 
     before_bytes = shadow_path.read_bytes()
     before_weights = copy.deepcopy(load_policy()["weights"])

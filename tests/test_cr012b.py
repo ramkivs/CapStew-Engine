@@ -282,11 +282,12 @@ def test_cr018_target_top_implementation_is_unchanged():
 def test_policy_yaml_not_mutated_by_scenarios(tmp_path, monkeypatch, foundation):
     import yaml
 
-    import app.policy as pol
+    import app.config as cfg
 
     shadow = tmp_path / "policy.yaml"
     shadow.write_text(yaml.safe_dump(load_policy()))
-    monkeypatch.setattr(pol, "POLICY_PATH", shadow)
+    monkeypatch.setattr(cfg, "POLICY_PATH", shadow)
+    monkeypatch.setattr(cfg, "USER_POLICY_PATH", tmp_path / "user-policy.yaml")
     before = shadow.read_bytes()
 
     for overrides in SCENARIOS.values():

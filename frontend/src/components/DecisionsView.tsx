@@ -1,5 +1,9 @@
+import { useEffect, useMemo, useState } from 'react';
 import type { DecisionPayload, Holding } from '../types';
 import { Badge, Banner, Bar, Stat, TagChip, inr, pct, num } from './ui';
+import { comparatorFor, cycleSort } from '../utils/sort';
+import type { SortDir, SortState } from '../utils/sort';
+import { exportDecisionsCsv, exportDecisionsJson } from '../utils/exportDecisions';
 
 const CAT_COLORS: Record<string, string> = {
   position_sizing: '#34d399',
@@ -12,6 +16,26 @@ const CAT_COLORS: Record<string, string> = {
 
 type PayloadWarning = DecisionPayload['warnings'][number];
 
+type SortKey =
+  | 'instrument' | 'bucket' | 'alloc' | 'gain' | 'decision'
+  | 'gate' | 'composite' | 'confidence' | 'review';
+
+const SORT_COLUMNS: Record<
+  SortKey,
+  { label: string; numeric: boolean; get: (h: Holding) => string | number | null }
+> = {
+  instrument: { label: 'Instrument', numeric: false, get: (h) => h.ticker ?? h.instrument },
+  bucket: { label: 'Bucket', numeric: false, get: (h) => h.bucket },
+  // NO-DECISION holdings carry no scored fields — nulls always sort last.
+  alloc: { label: 'Alloc', numeric: true, get: (h) => (h.decision === 'NO-DECISION' ? null : h.alloc_pct ?? null) },
+  gain: { label: 'Gain/Loss', numeric: true, get: (h) => (h.decision === 'NO-DECISION' ? null : h.gain_pct ?? null) },
+  decision: { label: 'Final decision', numeric: false, get: (h) => h.decision },
+  gate: { label: 'Gate state', numeric: false, get: (h) => gateMeta(h).label },
+  composite: { label: 'Composite', numeric: true, get: (h) => h.composite_score },
+  confidence: { label: 'Conf', numeric: true, get: (h) => h.confidence },
+  review: { label: 'Review', numeric: false, get: (h) => h.next_review_date },
+};
+
 export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
   payload: DecisionPayload;
   preview: DecisionPayload | null;
@@ -23,6 +47,21 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
   const tax = p.portfolio_summary.tax as Record<string, unknown>;
   const holdingsByInstrument = new Map(p.holdings.map((h) => [h.instrument, h]));
   const warningsByInstrument = groupWarningsByInstrument(p.warnings);
+
+  // Presentation-only sort state. The default null leaves the authoritative
+  // backend order untouched and resets whenever the payload object changes
+  // (including preview swaps). A copy is sorted — payload arrays and exports
+  // are never reordered (ADR-1a).
+  const [sort, setSort] = useState<SortState<SortKey> | null>(null);
+  useEffect(() => { setSort(null); }, [p]);
+  const holdings = useMemo(() => {
+    if (sort === null) return p.holdings;
+    const col = SORT_COLUMNS[sort.key];
+    return [...p.holdings].sort(
+      comparatorFor((h: Holding) => col.get(h), sort.dir,
+                    (h: Holding) => h.ticker ?? h.instrument),
+    );
+  }, [p, sort]);
 
   return (
     <div>
@@ -93,9 +132,13 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
           s="shown from authoritative Stage 1 gate state" />
       </div>
 
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, justifyContent: 'flex-end' }}>
+        <button className="btn" type="button" onClick={() => exportDecisionsJson(payload)}>Decisions JSON</button>
+        <button className="btn" type="button" onClick={() => exportDecisionsCsv(payload)}>Decisions CSV</button>
+      </div>
       <div className="grid cols-2">
         <div className="card">
-          <h3>Holdings — scored & ranked <span className="tag">click row → detail</span></h3>
+          <h3>Holdings — scored & ranked <span className="tag">click header → sort · click row → detail</span></h3>
           <div className="note" style={{ marginBottom: 8 }}>
             Decision, score, confidence, gate state, and review date are displayed separately to avoid treating a composite score as the action.
           </div>
@@ -103,13 +146,26 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
             <table>
               <thead>
                 <tr>
-                  <th>Instrument</th><th>Bucket</th>
-                  <th className="num">Alloc</th><th className="num">Gain/Loss</th>
-                  <th>Final decision</th><th>Gate state</th><th className="num">Composite</th><th className="num">Conf</th><th>Review</th>
+                  {(Object.entries(SORT_COLUMNS) as [SortKey, (typeof SORT_COLUMNS)[SortKey]][]).map(([key, col]) => {
+                    const active = sort?.key === key;
+                    const direction: SortDir | undefined = active ? sort?.dir : undefined;
+                    return (
+                      <th key={key} className={col.numeric ? 'num' : undefined}
+                        aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                        <button type="button" className={`th-sort${active ? ' active' : ''}`}
+                          title={`Sort by ${col.label}`}
+                          aria-label={`Sort by ${col.label}${active ? ` (currently ${direction === 'asc' ? 'ascending' : 'descending'})` : ''}`}
+                          onClick={() => setSort((cur) => cycleSort(cur, key))}>
+                          {col.label}
+                          <span className="sort-ind" aria-hidden="true">{active ? (direction === 'asc' ? '▲' : '▼') : '⇅'}</span>
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {p.holdings.map((h) => {
+                {holdings.map((h) => {
                   const m = meta(h.decision);
                   const prev = h.previous_run;
                   const changed = prev && prev.decision !== h.decision;
@@ -117,13 +173,13 @@ export function DecisionsView({ payload, preview, onSelect, onClearPreview }: {
                   return (
                     <tr key={h.instrument} className="row" onClick={() => onSelect(h)}>
                       <td className="tick">{h.ticker ?? h.instrument}
-                        {h.data_completeness.position_sizing === false ? ' · partial' : ''}
-                        {h.behavioral.blocks_adds ? ' ' : ''}
+                        {h.decision !== 'NO-DECISION' && h.data_completeness?.position_sizing === false ? ' · partial' : ''}
+                        {h.decision !== 'NO-DECISION' && h.behavioral?.blocks_adds ? ' ' : ''}
                       </td>
                       <td className="muted" style={{ fontFamily: 'system-ui' }}>{h.bucket ?? '—'}</td>
-                      <td className="num">{pct(h.alloc_pct)}</td>
-                      <td className={`num ${(h.gain_pct ?? 0) >= 0 ? 'up' : 'down'}`}>
-                        {(h.gain_pct ?? 0) >= 0 ? '+' : ''}{pct(h.gain_pct)}
+                      <td className="num">{h.decision === 'NO-DECISION' ? '—' : pct(h.alloc_pct ?? null)}</td>
+                      <td className={`num ${h.decision === 'NO-DECISION' ? '' : (h.gain_pct ?? 0) >= 0 ? 'up' : 'down'}`}>
+                        {h.decision === 'NO-DECISION' ? '—' : `${(h.gain_pct ?? 0) >= 0 ? '+' : ''}${pct(h.gain_pct ?? null)}`}
                       </td>
                       <td>
                         <Badge decision={h.decision} />
@@ -274,6 +330,9 @@ function formatWarning(w: PayloadWarning): string {
 
 function qualityCaveat(h: Holding | undefined): string {
   if (!h) return 'holding details unavailable in payload';
+  if (h.decision === 'NO-DECISION') {
+    return `no decision issued: ${h.reason_tree.decision_path}`;
+  }
 
   const parts: string[] = [];
   if (h.evidence) {
@@ -285,14 +344,14 @@ function qualityCaveat(h: Holding | undefined): string {
     parts.push('evidence unavailable');
   }
 
-  const dataQualityCaveats = Object.entries(h.data_quality)
+  const dataQualityCaveats = Object.entries(h.data_quality ?? {})
     .filter(([, v]) => !['actual', 'complete', 'ok', 'available'].includes(String(v).toLowerCase()))
     .map(([k, v]) => `${k.replace(/_/g, ' ')}=${v}`);
   if (dataQualityCaveats.length > 0) {
     parts.push(`data quality ${dataQualityCaveats.slice(0, 3).join(', ')}`);
   }
 
-  const incomplete = Object.entries(h.data_completeness)
+  const incomplete = Object.entries(h.data_completeness ?? {})
     .filter(([, ok]) => ok === false)
     .map(([k]) => k.replace(/_/g, ' '));
   if (incomplete.length > 0) {

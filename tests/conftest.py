@@ -29,7 +29,13 @@ def foundation(_generate):
 
 @pytest.fixture(autouse=True)
 def _tmp_store(tmp_path, monkeypatch):
-    """Isolate the run store per test so persistence tests never share state."""
+    """Isolate the run store AND the user policy file per test.
+
+    Without the policy redirect, any test hitting PUT /api/v1/policy would write
+    into the repository's data/ directory.
+    """
     import app.config as cfg
     monkeypatch.setattr(cfg, "STORE_PATH", tmp_path / "engine.db")
+    monkeypatch.setattr(cfg, "USER_POLICY_PATH", tmp_path / "policy.yaml")
+    monkeypatch.setattr(cfg, "BACKUP_DIR", tmp_path / "backups")
     yield
