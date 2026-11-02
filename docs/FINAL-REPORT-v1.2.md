@@ -2,7 +2,8 @@
 
 **Repository:** `ramkivs/CapStew-Engine`
 **Branch:** `arena/fed5107a-capstew-engine` (base `ffdf9cba`)
-**Commits:** `58e36e5` (reliability corrections) · `e7ba3ea` (fixture date-range fix) · `7ff5c93` (this report) — all pushed
+**Commits:** `58e36e5` (reliability corrections) · `e7ba3ea` (fixture date-range fix) · `7ff5c93`, `96299d0` (report) · Windows verification harness — all pushed
+**Companion:** [`docs/WINDOWS-VERIFICATION.md`](WINDOWS-VERIFICATION.md) — the PowerShell harness, its evidence layout, and the residual browser checks
 **Scope:** dependable **personal, single-user, locally-hosted Windows** application.
 No multi-tenant, SaaS, cloud, orchestration, or governance machinery was introduced.
 
@@ -107,6 +108,8 @@ They were **documented rather than deleted**: each mirrors a signed D-05…D-14 
 | FIX-21 | `ENGINE_VERSION` `0.3.1-phase3` → `1.2.0`, matching the `v1.0.0`/`v1.1.0` tags. `test_decision.py` now pins the constant instead of a stale `startswith("0.3")`. | `app/config.py`, `tests/test_decision.py` |
 | FIX-22 | `scripts/start.bat` + `stop.bat`: loopback-only startup, first-run venv/`npm install`, health-gated browser launch, port-conflict detection. | `scripts/start.bat`, `scripts/stop.bat` |
 | FIX-23 | README corrected: real test counts, loopback run commands, Windows quick-start. | `README.md` |
+| FIX-24 | `scripts/verify-windows.ps1` — 19-check local verification harness: repo/branch/commit/tree state, prerequisites, port availability, loopback startup, poll-until-ready, health, app shell, `/api` proxy, golden trilogy, restart with previous-run recovery and diff, SHA-256 preservation of `data\`, optional `start.bat`/`stop.bat` exercise. Timestamped evidence directory; stops only the PIDs it started. | `scripts/verify-windows.ps1` |
+| FIX-25 | Four of the six §F manual UI items automated with the existing vitest/jsdom setup — no new framework. Both files proven to fail against the pre-fix code. Frontend suite 26 → 38. | `frontend/src/components/WeightsView.test.tsx`, `HoldingDetail.test.tsx` |
 
 ---
 
@@ -152,7 +155,7 @@ Every figure below was **actually executed** in this session. Nothing is project
 |---|---|---|
 | Backend | `pytest -q` | **557 passed, 0 failed, 0 skipped** (5.7s) |
 | Backend, fresh venv + clean checkout | inside `release_check.sh` | **557 passed** |
-| Frontend unit | `npx vitest run` | **26 passed** (4 files) |
+| Frontend unit | `npx vitest run` | **38 passed** (6 files) |
 | Frontend types | `npx tsc --noEmit` | clean |
 | Frontend build | `npm run build` | clean, 193 kB (59.6 kB gzip) |
 | Dependency audit | `npm audit` | **0 vulnerabilities** |
@@ -169,8 +172,10 @@ New tests added: **107 backend** (baseline 450 → 557) — 103 in new files and
 golden-fixture guards (hysteresis persistence 34, exit/re-entry 4, security 17,
 determinism/reproducibility 14, API contract 19, policy keys 12, fixture
 self-consistency 3), plus a net +4 from rewriting `tests/test_policy.py` (7 → 11
-tests) for the corrected allowlist/weight-sum contract. Plus **26 frontend** tests,
-from a baseline of zero.
+tests) for the corrected allowlist/weight-sum contract. Plus **38 frontend** tests,
+from a baseline of zero — the last 12 (`WeightsView` 6, `HoldingDetail` 6) were added
+while preparing the Windows verification pass, to automate four of the six items
+that §F had listed as manual.
 
 ### Release gate detail (13/13, from a clean checkout)
 
@@ -222,7 +227,8 @@ Genuine only. Cosmetic findings and false positives are listed separately.
 | # | Issue | Impact on personal use | Suggested handling |
 |---|---|---|---|
 | E-01 | **Backend dependencies are unpinned.** `requirements.txt` uses `>=` with no lockfile (the frontend has `package-lock.json`). A future `pip install` may resolve an incompatible major. | Real but low — the app works today; risk appears only when reinstalling months later. | Pin with `pip freeze` into a `requirements.lock` when next reinstalling. Not done here: it would need a Windows-generated freeze to be meaningful. |
-| E-02 | **Manual UI checks remain.** No browser automation is available in this environment, so the UI was verified by HTTP (page 200, proxy 200, production build clean) and by unit tests on the components — **not** by clicking through a real browser. | Moderate — the interactive paths below are unexercised end-to-end. | See the checklist in §F. |
+| E-02 | **Three browser-only checks remain.** Four of the six items originally listed as manual are now automated (§F). No browser automation exists in this environment — the server returns only `<div id="root"></div>`, so no HTTP-level tool can observe rendered output. | Low — the residual items are download-to-disk, the dead-backend banner, and visual confirmation. | §5 of `docs/WINDOWS-VERIFICATION.md` gives exact steps and an evidence-capture method. |
+| E-07 | **The Windows harness has not been executed.** `scripts/verify-windows.ps1` is written and statically validated (no `else`/`elseif`/`finally`; balanced delimiters; every API path it calls confirmed against `app/main.py`; its `npm run dev -- --host --port` passthrough confirmed working), but this sandbox is Linux with no PowerShell interpreter — the release-assets host is not reachable, so none could be installed. | Real: the script is unproven on its target platform. | Run it (§1 of the guide) and send back the evidence directory. |
 | E-03 | **No CI.** Nothing runs the suite on push. | Low for a single user; `release_check.sh` is the substitute. | Optional. Running `bash scripts/release_check.sh` before tagging is sufficient. |
 | E-04 | **No `LICENSE` file** in the repository. | None functionally; matters only if the repo is shared. | Out of scope for this brief. |
 | E-05 | `holding_period_days` is parsed in `ingest.py:72` but consumed nowhere. | None. | Left as-is: it is part of the input contract and harmless. |
@@ -290,17 +296,33 @@ Re-baseline the manifest after committed changes, before tagging:
 bash scripts\make_manifest.sh
 ```
 
-### Manual UI checklist (E-02 — not automated)
+### Windows verification harness and residual UI checks
 
-Each of these is covered by a unit test on the component, but has not been
-clicked in a real browser here:
+Full instructions, the evidence-directory layout, and the coverage matrix are in
+[`docs/WINDOWS-VERIFICATION.md`](WINDOWS-VERIFICATION.md). In brief:
 
-1. Header sort on the holdings table — asc → desc → back to payload order; `NO-DECISION` rows stay last.
-2. **Decisions JSON** / **Decisions CSV** buttons produce a download carrying `run_id`, `as_of`, `content_hash`.
-3. Click a row → detail panel; click a `NO-DECISION` row → shows the reason, not a crash.
-4. Weights tab → set the total to 99, confirm commit is blocked; set to 100, confirm it commits.
-5. Stop the backend, then click a tab → an error message appears (previously the view just looked empty).
-6. Restart the backend, reload → previous run still listed, diff still works.
+`scripts\verify-windows.ps1` runs 19 automated checks — repository state,
+prerequisites, port availability, loopback startup, poll-until-ready (never a
+fixed sleep), health, app shell, the `/api` proxy, the golden trilogy, run
+history, a full restart with previous-run recovery and diff, byte-level
+preservation of `data\`, and optionally the shipped `start.bat`/`stop.bat`. It
+records every HTTP response and log to a timestamped evidence directory and stops
+only the PIDs it started.
+
+Of the six UI items above, **four are now automated** and two-and-a-bit remain:
+
+| Item | Status |
+|---|---|
+| 1. Sorting + `NO-DECISION` placement | automated (`DecisionsView.test.tsx`) |
+| 2. Export payload content | automated (`exportDecisions.test.ts`); *the download itself is manual* |
+| 3. Detail view incl. `NO-DECISION` reason | automated (`HoldingDetail.test.tsx`, 6 tests) |
+| 4. Weights 99 blocked / 100 accepted | automated (`WeightsView.test.tsx`, 6 tests) |
+| 5. Backend-unavailable error | client layer automated (`client.test.ts`); *the banner is manual* |
+| 6. Restart, previous run, diff | automated at the API level by the harness (checks 12–14) |
+
+The three genuinely manual steps are in §5 of the guide: confirm a file lands in
+Downloads, confirm the dead-engine banner appears, and glance at the sort
+indicators and detail panel.
 
 ---
 
@@ -313,7 +335,7 @@ clicked in a real browser here:
 - Every Critical and High defect from §A is fixed and each fix has a test that
   fails against the pre-fix code where that was checkable (D-01, D-02, D-03,
   D-05, D-06, D-07, D-08, D-12 all have such a guard).
-- **557 backend + 26 frontend tests pass**, plus `tsc` clean, production build
+- **557 backend + 38 frontend tests pass**, plus `tsc` clean, production build
   clean, and `npm audit` at 0 vulnerabilities (down from 2 high).
 - **`release_check.sh` 13/13 from a clean checkout**, covering dependency
   reproducibility, fixture byte-reproducibility, manifest integrity and coverage,
@@ -327,19 +349,23 @@ clicked in a real browser here:
 
 **Why "minor limitations" rather than fully ready:**
 
-- **E-02** — the interactive UI has not been exercised in a real browser, because
-  no browser automation exists in this environment. Component-level unit tests
-  cover the same logic, and the six listed interactions should be clicked once
-  before relying on the app.
+- **E-02** — three browser-only checks remain (download-to-disk, the dead-engine
+  banner, visual confirmation). Four of the six originally-manual items are now
+  automated, and both new test files were proven to fail against the pre-fix
+  code rather than merely passing against the fixed code.
+- **E-07** — `scripts/verify-windows.ps1` has not been executed. It is the
+  deliverable that must be run on your laptop before Windows behaviour can be
+  called verified.
 - **E-01** — backend dependencies are unpinned, so a fresh install months from
   now could resolve differently from the verified one.
 
 Neither affects the correctness of any decision the engine produces today. Both
 are cheap to close and neither blocks personal use.
 
-**Not claimed:** no browser-driven end-to-end test was executed; `start.bat` and
-`stop.bat` could not be run in this Linux environment, so their substance was
-verified by executing each command they invoke (venv creation, dependency probe,
-uvicorn launch, `/health` polling, Vite launch, proxy) but the batch control flow
-itself has not been run on Windows. That is the one artefact that should be
-exercised first.
+**Not claimed:** no browser-driven end-to-end test was executed, and no Windows
+artefact has been executed. `start.bat`, `stop.bat` and `verify-windows.ps1` were
+each checked as far as this Linux sandbox allows — every command they invoke was
+run for real (venv creation, dependency probe, uvicorn launch, `/health` polling,
+Vite launch, the `/api` proxy, the `npm run dev -- --host --port` passthrough),
+and the PowerShell was statically validated — but their platform control flow is
+unproven. Run the harness first; it is the artefact that closes the gap.
