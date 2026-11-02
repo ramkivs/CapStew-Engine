@@ -1,11 +1,23 @@
 # Capital Steward Engine — policy (v1 · D-01…D-15)
 # This file is the OPERATIONAL serialization of the signed D-01…D-15 policy in
 # Methodology Freeze §14 — it must not introduce or silently alter policy values.
-# Phase 1 reads: ltcg_period_days, recon_tolerance_inr, buckets.
-# Phase 2 reads: bands, thresholds, weights, participation, review cadence.
+#
+# Keys are kept in D-01…D-15 order so this file stays auditable against the
+# freeze. A key the engine does not yet read is tagged [NOT CONSUMED] below —
+# editing such a key changes NOTHING. tests/test_policy_keys.py fails if the
+# tags drift from what app/ actually reads, so this note cannot go stale.
+#
+#   effective_from            provenance/datestamp only, never read as a rule
+#   quality_drop_pts          needs QoQ quality series — not in the inputs
+#   pledge_qoq_pp             needs QoQ pledge series  — not in the inputs
+#   rerating_strong_pct       no re-rating feature in the engine
+#   rerating_critical_pct     no re-rating feature in the engine
+#   participation_adv_pct     needs 20d ADV — not in the inputs (see D-12 note)
+#   hurdle_nifty_pct          D-14 hurdles are documented, not applied
+#   hurdle_liquid_pct         D-14 hurdles are documented, not applied
 
 policy_version: 1
-effective_from: 2026-08-22
+effective_from: 2026-08-22   # [NOT CONSUMED] datestamp only
 
 # D-01 bucket definitions (market cap, ₹ Cr)
 buckets:
@@ -27,11 +39,11 @@ rebalance_trigger_multiple: 1.5
 
 # D-05 quality floor / thesis break (G1)
 quality_floor: 40
-quality_drop_pts: 20
+quality_drop_pts: 20          # [NOT CONSUMED] needs QoQ quality series
 
 # D-06 promoter pledge spike (G1)
 pledge_threshold_pct: 10.0
-pledge_qoq_pp: 5.0
+pledge_qoq_pp: 5.0            # [NOT CONSUMED] needs QoQ pledge series
 
 # D-07 LTCG defer window (G3) + valuation-extreme suppress override
 ltcg_defer_window_days: 30
@@ -54,15 +66,17 @@ weights:
   technical_regime: 5
 
 # D-10 re-rating share thresholds (%)
-rerating_strong_pct: 65
-rerating_critical_pct: 80
+# [NOT CONSUMED] the engine implements no re-rating watchlist; retained only so
+# this file stays a faithful serialization of the signed D-10 decision.
+rerating_strong_pct: 65       # [NOT CONSUMED] no re-rating feature
+rerating_critical_pct: 80     # [NOT CONSUMED] no re-rating feature
 
 # D-11 min meaningful position (dust floor)
 min_position_alloc_pct: 0.5
 min_position_value: 5000
 
 # D-12 participation cap (C3)
-participation_adv_pct: 10       # % of 20d ADV, when ADV known
+participation_adv_pct: 10       # [NOT CONSUMED] % of 20d ADV — ADV is not an input
 participation_position_pct: 25  # % of position, when ADV unknown
 
 # D-13 transaction cost assumptions (%)
@@ -70,8 +84,8 @@ txn_cost_liquid_pct: 0.35
 txn_cost_microcap_pct: 1.0
 
 # D-14 opportunity-cost hurdles (% p.a. pre-tax)
-hurdle_nifty_pct: 11.0
-hurdle_liquid_pct: 6.4
+hurdle_nifty_pct: 11.0        # [NOT CONSUMED] documented hurdle, not applied
+hurdle_liquid_pct: 6.4        # [NOT CONSUMED] documented hurdle, not applied
 
 # D-15 review cadence (days)
 review_cadence:

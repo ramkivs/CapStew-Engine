@@ -10,7 +10,27 @@ WEIGHT_KEYS = [
     "tax_efficiency", "opportunity_cost", "technical_regime",
 ]
 PROXY_CATEGORIES = {"valuation_stretch", "quality_drift", "opportunity_cost", "technical_regime"}
-BAND_EDGES = (31, 56, 76)  # enter thresholds used for the confidence boundary penalty
+
+# Signed D-08 v1 composite band boundaries (policy.yaml `bands`). These are the
+# fallbacks used when the policy block is absent; the live values are read from
+# policy so that editing `bands` actually moves the bands.
+DEFAULT_HOLD_MAX = 30
+DEFAULT_WATCH_MAX = 55
+DEFAULT_TRIM_MAX = 75
+
+# Enter thresholds used for the confidence boundary penalty — one point above
+# each band boundary, derived from the same D-08 values.
+BAND_EDGES = (31, 56, 76)
+
+
+def band_edges(policy=None):
+    """D-08 enter thresholds (boundary + 1) for the confidence boundary penalty."""
+    bands = (policy or {}).get("bands") or {}
+    return (bands.get("hold_max", DEFAULT_HOLD_MAX) + 1,
+            bands.get("watch_max", DEFAULT_WATCH_MAX) + 1,
+            bands.get("trim_max", DEFAULT_TRIM_MAX) + 1)
+
+
 ASSUMED_SMALL_MICRO_BASIS = "assumed_small_micro"
 CLASSIFIED_BUCKET_BASIS = "classified_bucket"
 OPPORTUNITY_COST_SOURCE_PEG_PROXY = "peg_proxy"
@@ -249,12 +269,23 @@ def eligibility(subs, weights):
     }
 
 
-def band_of(score):
-    if score <= 30:
+def band_of(score, policy=None):
+    """Composite score → decision band (D-08).
+
+    The boundaries are policy data (`bands` in policy.yaml). They used to be
+    duplicated here as literals, so `bands` was validated but never consumed and
+    editing it had no effect. The defaults reproduce the signed D-08 v1 values,
+    so behaviour is unchanged unless the policy block is present and different.
+    """
+    bands = (policy or {}).get("bands") or {}
+    hold_max = bands.get("hold_max", DEFAULT_HOLD_MAX)
+    watch_max = bands.get("watch_max", DEFAULT_WATCH_MAX)
+    trim_max = bands.get("trim_max", DEFAULT_TRIM_MAX)
+    if score <= hold_max:
         return "HOLD"
-    if score <= 55:
+    if score <= watch_max:
         return "WATCH"
-    if score <= 75:
+    if score <= trim_max:
         return "TRIM"
     return "HARVEST"
 

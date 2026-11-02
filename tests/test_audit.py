@@ -230,9 +230,9 @@ def test_h_averaging_flag_is_caution_not_exit():
 def test_i_what_if_does_not_persist_or_mutate_policy(tmp_path, monkeypatch):
     from app import config as cfg
     from app.store import RunStore
-    import app.policy as pol
     cfg.STORE_PATH = tmp_path / "engine.db"
-    monkeypatch.setattr(pol, "POLICY_PATH", tmp_path / "policy.yaml")
+    monkeypatch.setattr(cfg, "POLICY_PATH", tmp_path / "policy.yaml")
+    monkeypatch.setattr(cfg, "USER_POLICY_PATH", tmp_path / "user-policy.yaml")
     import yaml
     (tmp_path / "policy.yaml").write_text(yaml.safe_dump(POLICY))
 

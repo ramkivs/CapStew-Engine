@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { DecisionPayload, Holding, Policy, RunDiff, RunListItem, TaxYear } from './types';
 import { engine } from './api/engine';
+import { errMessage, isNotFound } from './api/client';
 import { tax } from './api/tax';
 import { history } from './api/history';
 import { policy } from './api/policy';
@@ -25,17 +26,24 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshRuns = useCallback(async () => {
-    try { setRuns(await history.runs()); } catch { /* no runs yet */ }
+  // A NOT_FOUND on load simply means "nothing has been run yet" — that is a normal
+  // empty state, not a fault. Anything else (engine down, 500, bad payload) is
+  // surfaced, so the UI never shows a blank shell with no explanation.
+  const noteLoadError = useCallback((e: unknown) => {
+    if (!isNotFound(e)) setError(errMessage(e));
   }, []);
 
+  const refreshRuns = useCallback(async () => {
+    try { setRuns(await history.runs()); } catch (e) { noteLoadError(e); }
+  }, [noteLoadError]);
+
   useEffect(() => {
-    engine.health().then((h) => setEngineVersion(h.engine_version)).catch(() => {});
-    policy.get().then(setPolicyData).catch(() => {});
+    engine.health().then((h) => setEngineVersion(h.engine_version)).catch(noteLoadError);
+    policy.get().then(setPolicyData).catch(noteLoadError);
     engine.decisions().then((p) => { setPayload(p); setTaxData(p.tax_year ?? null); })
-      .catch(() => { /* no run yet — expected */ });
+      .catch(noteLoadError);
     refreshRuns();
-  }, [refreshRuns]);
+  }, [refreshRuns, noteLoadError]);
 
   async function handleRunSample() {
     setRunning(true); setError(null);
@@ -43,7 +51,7 @@ export default function App() {
       const p = await engine.runSample();
       setPayload(p); setPreview(null); setTaxData(p.tax_year ?? null);
       setView('decisions'); refreshRuns();
-    } catch (e) { setError((e as Error).message); }
+    } catch (e) { setError(errMessage(e)); }
     finally { setRunning(false); }
   }
 
@@ -58,7 +66,7 @@ export default function App() {
       const p = await engine.run(form);
       setPayload(p); setPreview(null); setTaxData(p.tax_year ?? null);
       setView('decisions'); refreshRuns();
-    } catch (e) { setError((e as Error).message); }
+    } catch (e) { setError(errMessage(e)); }
     finally { setRunning(false); }
   }
 
@@ -66,20 +74,23 @@ export default function App() {
     try {
       const p = await engine.whatIf({ weights });
       setPreview(p);
-    } catch (e) { setError((e as Error).message); }
+    } catch (e) { setError(errMessage(e)); }
   }
 
   async function handleCommit(weights: Record<string, number>) {
-    const p = await policy.put({ weights });
-    setPolicyData(p);
+    try {
+      const p = await policy.put({ weights });
+      setPolicyData(p);
+      setError(null);
+    } catch (e) { setError(errMessage(e)); }
   }
 
   async function handleDiff(runId: string) {
-    setDiff(await history.diff(runId));
+    try { setDiff(await history.diff(runId)); } catch (e) { setError(errMessage(e)); }
   }
 
   async function handleTaxRefresh() {
-    try { setTaxData(await tax.tracker()); } catch { /* no realised data */ }
+    try { setTaxData(await tax.tracker()); } catch (e) { if (!isNotFound(e)) setError(errMessage(e)); }
   }
 
   return (

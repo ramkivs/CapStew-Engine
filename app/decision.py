@@ -32,6 +32,10 @@ from .trim import trim_s, trim_v
 
 PRIORITY = {"EXIT": 0, "TRIM": 1, "HARVEST": 2}
 
+# Methodology constants (Freeze §4/§6) — deliberately NOT policy parameters.
+HIGH_CONF_FLOOR = 70          # confidence at/above which a HOLD gets the long cadence
+REUNDERWRITE_CAP_DAYS = 14    # averaging-into-losses forces review within this many days
+
 
 def _merge_policy(base, overrides):
     if not overrides:
@@ -88,17 +92,30 @@ def _drivers(gate, subs, weights, decision_path, caps_note):
     return drivers
 
 
-def _review_date(decision, conf, gate_fired, as_of, flag):
+def _review_date(decision, conf, gate_fired, as_of, flag, policy=None):
+    """Next review date (D-15 review cadence).
+
+    The four cadence values are policy data (`review_cadence` in policy.yaml);
+    they used to be duplicated here as literals, so editing the policy file had
+    no effect. Defaults preserve the frozen v1 values when the block is absent.
+    HIGH_CONF_FLOOR and the behavioural re-underwrite cap are methodology
+    constants, not policy parameters, and stay in code.
+    """
+    rc = (policy or {}).get("review_cadence") or {}
+    gate_days = rc.get("gate_fired_days", 1)
+    action_days = rc.get("action_verify_days", 7)
+    high_days = rc.get("hold_high_conf_days", 90)
+    low_days = rc.get("hold_low_conf_days", 30)
     if gate_fired:
-        days = 1
+        days = gate_days
     elif decision in ("TRIM", "HARVEST", "EXIT"):
-        days = 7
-    elif conf is not None and conf >= 70:
-        days = 90
+        days = action_days
+    elif conf is not None and conf >= HIGH_CONF_FLOOR:
+        days = high_days
     else:
-        days = 30
+        days = low_days
     if flag:
-        days = min(days, 14)
+        days = min(days, REUNDERWRITE_CAP_DAYS)
     return (as_of + timedelta(days=days)).isoformat()
 
 
@@ -151,12 +168,25 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
         decision, caps_note = "WATCH", "no scorable categories available"
         trim_mode = None
     else:
-        raw_band = band_of(comp)
+        raw_band = band_of(comp, policy)
         decision = raw_band
         if apply_hysteresis:
             decision = hv.apply(instrument, raw_band, comp, as_of)
         decision, caps_note = apply_eligibility_caps(decision, ev["tier"], ev["critical_categories_missing"])
         trim_mode = "V" if decision == "TRIM" else None
+
+    # Freeze §6 N=2: hv.apply()/hv.bypass() above create or clear the confirmation
+    # counter AFTER `prev` was read at the top of this function, so refresh it here.
+    # The persisted previous_run is the only channel that carries the counter to the
+    # next run / process; without this refresh it restarts at 1 every run and the
+    # required second distinct as_of never arrives. Only `pending` is refreshed —
+    # decision/composite_score/as_of keep their frozen "what the previous run
+    # decided" meaning (Freeze §9.2).
+    if prev is not None:
+        pending = (hv.get_prev(instrument) or {}).get("pending")
+        prev = {k: v for k, v in prev.items() if k != "pending"}
+        if pending:
+            prev["pending"] = pending
 
     # Trim plan
     trim = None
@@ -170,7 +200,7 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
     conf = None
     breakdown = None
     if comp is not None and ev is not None:
-        penalties = compute_penalties(subs, ev["coverage"], comp, stale_cat_count, proxy_count)
+        penalties = compute_penalties(subs, ev["coverage"], comp, stale_cat_count, proxy_count, policy)
         conf = confidence_from_penalties(penalties)
         if ev["tier"] == "ADVISORY":
             conf = min(conf, 55)
@@ -265,7 +295,7 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
         },
         "why_now": {
             "primary_trigger": (f"{gate['winning_gate']} — {gate['gates_fired'][0] if gate['gates_fired'] else ''}"
-                               if gate_fired else f"composite {comp} → {band_of(comp) if comp is not None else '—'} band"),
+                               if gate_fired else f"composite {comp} → {band_of(comp, policy) if comp is not None else '—'} band"),
             "contributors": [
                 {"label": k.replace("_", " "), "value": v, "weight": weights.get(k, 0)}
                 for k, v in sorted(((k, v) for k, v in subs.items() if v is not None),
@@ -273,7 +303,7 @@ def decide_instrument(pos, lots, policy, total_value, as_of, hv, stale_files, bl
             ],
         },
         "previous_run": prev,
-        "next_review_date": _review_date(decision, conf, gate_fired, as_of, flag),
+        "next_review_date": _review_date(decision, conf, gate_fired, as_of, flag, policy),
     }
 
 
@@ -293,7 +323,8 @@ def decide_all(foundation, policy_overrides=None, hysteresis=None, apply_hystere
     hv = hysteresis or Hysteresis()
     if history:
         for inst, st in history.items():
-            hv.seed(inst, st.get("decision"), st.get("composite_score"), st.get("as_of"))
+            hv.seed(inst, st.get("decision"), st.get("composite_score"), st.get("as_of"),
+                    st.get("pending"))
 
     holdings = [
         decide_instrument(pos, lots_by.get(pos["instrument"], []), policy, total_value, as_of,
@@ -342,18 +373,6 @@ def decide_all(foundation, policy_overrides=None, hysteresis=None, apply_hystere
         "engine_version": config.ENGINE_VERSION,
         "policy_version": policy.get("policy_version"),
         "input_hash": foundation["content_hash"],
-        "provenance": {
-            "engine_version": config.ENGINE_VERSION,
-            "normalization_version": config.NORMALIZATION_VERSION,
-            "calculation_version": config.CALCULATION_VERSION,
-            "policy_version": policy.get("policy_version"),
-            "sources": {
-                key: {"as_of": value,
-                      "days_behind": (as_of - date.fromisoformat(value)).days}
-                for key, value in foundation.get("data_as_of", {}).items()
-                if key != "stale_files"
-            },
-        },
         "provenance": {
             "engine_version": config.ENGINE_VERSION,
             "normalization_version": config.NORMALIZATION_VERSION,

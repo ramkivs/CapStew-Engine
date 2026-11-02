@@ -18,7 +18,7 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
   const weights = h.subscores;
   const gate = gateMeta(h);
   const confidenceBreakdown = Object.entries(h.confidence_breakdown ?? {});
-  const incompleteInputs = Object.entries(h.data_completeness)
+  const incompleteInputs = Object.entries(h.data_completeness ?? {})
     .filter(([, ok]) => ok === false)
     .map(([k]) => k.replace(/_/g, ' '));
 
@@ -119,8 +119,8 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
             {Object.entries(CAT_LABELS).map(([k, label]) => (
               <div key={k} className="subrow" style={{ marginTop: 9 }}>
                 <span>{label}</span>
-                <Bar value={weights[k as keyof typeof weights] ?? 0} color={CAT_COLORS[k]} />
-                <span className="num" style={{ fontFamily: 'var(--mono)' }}>{num(weights[k as keyof typeof weights])}</span>
+                <Bar value={(weights?.[k as keyof NonNullable<typeof weights>] ?? 0)} color={CAT_COLORS[k]} />
+                <span className="num" style={{ fontFamily: 'var(--mono)' }}>{num(weights?.[k as keyof NonNullable<typeof weights>] ?? null)}</span>
               </div>
             ))}
             <div className="note" style={{ marginTop: 10 }}>
@@ -156,7 +156,7 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
                 ? ` · missing critical: ${h.evidence.critical_categories_missing.join(', ')}` : ' · no critical missing categories reported'}
             </div>
             <div className="note" style={{ marginTop: 6 }}>
-              data quality: {Object.entries(h.data_quality).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ') || '—'}
+              data quality: {Object.entries(h.data_quality ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ') || '—'}
             </div>
             <div className="note" style={{ marginTop: 6 }}>
               completeness: {incompleteInputs.length ? `partial ${incompleteInputs.join(', ')}` : 'all reported categories complete'}
@@ -182,7 +182,7 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
             </div>
           ) : null}
 
-          {h.behavioral.blocks_adds ? (
+          {h.behavioral?.blocks_adds ? (
             <div className="card" style={{ marginTop: 14 }}>
               <h3>Behavioral guardrail</h3>
               <ul className="drivers">
@@ -227,7 +227,7 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
                   </tr>
                 </thead>
                 <tbody>
-                  {h.lots.map((l) => (
+                  {(h.lots ?? []).map((l) => (
                     <tr key={l.lot_id}>
                       <td className="tick">#{l.lot_id}</td>
                       <td>{l.trade_date}</td>
@@ -257,7 +257,7 @@ export function HoldingDetail({ holding, onClose }: { holding: Holding | null; o
               {JSON.stringify(h.reason_tree.stage1)} · {h.reason_tree.decision_path}
             </div>
             <div className="note" style={{ marginTop: 4 }}>
-              data quality: {Object.entries(h.data_quality).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ')}
+              data quality: {Object.entries(h.data_quality ?? {}).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' · ')}
             </div>
           </div>
         </div>

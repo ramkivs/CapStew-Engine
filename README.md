@@ -1,11 +1,12 @@
-# Capital Steward Engine — Phase 3 (tax + history + provenance)
+# Capital Steward Engine — v1.2 (Phase 3 engine + reliability corrections)
 
 Portfolio discipline · valuation · tax · risk.
 
 - **Phase 1 (done):** data foundation — parsers → normalization → reconciliation (G0) → per-lot FIFO → canonical payload, with the determinism hash. No decision logic.
 - **Phase 2 (done):** the decision engine — G0–G4 gates → Stage-2 scorer → confidence → hysteresis → TRIM-S/TRIM-V → `reason_tree`/`why_now` → DecisionPayload.
-- **Phase 2 audit: PASSED — no known open audit findings** (table below; 111 → 126 backend tests).
-- **Phase 3 (this build):** tax-year subsystem (S.74 set-off, exemption, carry-forward, FIFO sell matching, tax-aware sequencing) + run history/`diff` + provenance completion. **126 backend tests green; frontend TypeScript build clean.**
+- **Phase 2 audit: PASSED — no known open audit findings** (table below; the suite has since grown from 111 to 554 backend tests).
+- **Phase 3:** tax-year subsystem (S.74 set-off, exemption, carry-forward, FIFO sell matching, tax-aware sequencing) + run history/`diff` + provenance completion.
+- **v1.2 (this build): reliability corrections for local single-user use** — path-traversal and unsigned-policy-write fixes, mtime-independent determinism, hysteresis state persisted across restarts, append-only run store, a uniform API error envelope, live configuration keys, and a first frontend test suite. **554 backend + 26 frontend tests green; `tsc --noEmit` and the production build clean.**
 
 ## Status
 
@@ -56,19 +57,43 @@ app/
   main.py        FastAPI endpoints
 policy/policy.yaml        D-01…D-15 (signed in Freeze §14; operational serialization only)
 fixtures/                 generated CSV fixtures (golden trilogy embedded) + sold_sample.csv
-tests/                    126 backend tests (unit · gates · scoring · confidence · trim · hysteresis · decision · audit · policy · tax · diff · API)
+tests/                    554 backend tests (unit · gates · scoring · confidence · trim · hysteresis · decision · audit · policy · tax · diff · API · security · determinism)
 scripts/hash_engine.py    cross-process determinism probe
 ```
 
 ## Run
 
+### Windows (the normal way to run this)
+
+Double-click **`scripts\\start.bat`**. It creates `.venv`, installs dependencies on
+first run, starts the engine and the interface on `127.0.0.1`, and opens your
+browser at <http://127.0.0.1:5173>. Two minimised windows hold the logs.
+Stop everything with **`scripts\\stop.bat`**.
+
+Both services bind to loopback only — nothing is reachable from other machines.
+Your runs are stored in `data\\engine.db`; committed policies are backed up to
+`data\\backups\\` before each change.
+
+### Manual / other platforms
+
 ```bash
+python -m venv .venv && . .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-python fixtures/generate_fixtures.py fixtures   # regenerate fixtures
-pytest -q                                       # 126 backend tests passed
-cd frontend && npx tsc --noEmit                 # frontend type-check clean
-uvicorn app.main:app --host 0.0.0.0 --port 8000 # API
+python fixtures/generate_fixtures.py fixtures    # regenerate fixtures (byte-identical)
+pytest -q                                        # 554 backend tests
+uvicorn app.main:app --host 127.0.0.1 --port 8000  # API — loopback, single user
+
+cd frontend
+npm install
+npm run typecheck                                # tsc --noEmit clean
+npm test                                         # 26 frontend tests
+npm run dev                                      # UI on http://127.0.0.1:5173
 ```
+
+Run `bash scripts/release_check.sh` for the full readiness gate (clean-checkout
+deps, fixture reproducibility, manifest integrity, both test suites, production
+build, fresh API process, golden-trilogy acceptance, and persistence across a
+restart).
 
 ## API
 
@@ -143,13 +168,9 @@ frontend/src/
 `frontend/src/types.ts` is the frozen serialization of this contract; the backend
 `decision.py` payload is its authority.
 
-**Run (both servers):**
-```bash
-# backend (port 8000)
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-# frontend (port 5173, proxies /api)
-cd frontend && npm install && npm run dev
-```
+**Run (both servers):** see [Run](#run) above, or double-click `scripts\start.bat`.
+Both bind to `127.0.0.1`; the dev server proxies `/api`, so the browser only ever
+talks to one origin and no CORS surface exists.
 
 **Acceptance test (backend authoritative, UI renders exactly):** the bundled demo
 run must display `SALASAR → TRIM-S (G2)`, `ASHOKA → EXIT (G1)`, `LT → HOLD (G3)` —
