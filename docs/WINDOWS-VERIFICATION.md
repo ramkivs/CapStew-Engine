@@ -1,4 +1,4 @@
-# Windows Verification Guide — Capital Steward Engine
+# Windows Verification Guide — CapitalCompass
 
 Companion to `FINAL-REPORT-v1.2.md`. Covers the two things that report could not
 close: driving the application on a real Windows machine, and the browser-level
@@ -222,7 +222,7 @@ Start the app (`scripts\start.bat`), then at <http://127.0.0.1:5173>:
 
 **B. Error is shown when the engine is down**
 
-1. With the UI open, close the `CapitalSteward-API` window.
+1. With the UI open, close the `CapitalCompass-API` window.
 2. Click any tab that refetches (History, Tax, Weights).
 3. Confirm a message naming `ENGINE_UNREACHABLE` appears — **not** a blank panel.
 4. Run `scripts\start.bat` again and confirm the panel recovers.

@@ -1,4 +1,4 @@
-"""Capital Steward Engine — FastAPI service.
+"""CapitalCompass — FastAPI service.
 
 Phase 1 (data foundation): /health, /reconcile, /ingest, /lots/{instrument}
 Phase 2 (decision engine):  /run, /what-if, /decisions, /holdings/{id}, /runs, /policy
@@ -28,7 +28,7 @@ from .schema import DecisionPayloadValidationError, validate_decision_payload
 from .store import RunStore, RunStoreError
 
 app = FastAPI(
-    title="Capital Steward Engine",
+    title="CapitalCompass",
     description="Portfolio discipline · valuation · tax · risk — personal local use",
     version=config.ENGINE_VERSION,
 )

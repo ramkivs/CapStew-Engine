@@ -21,9 +21,9 @@ export function Header({ view, onView, engine, asOf, running }: {
     <>
       <header className="appbar">
         <div className="logo">
-          <div className="mark">CS</div>
+          <div className="mark">CC</div>
           <div>
-            <b>Capital Steward Engine</b>
+            <b>CapitalCompass</b>
             <br />
             <small>Portfolio discipline · valuation · tax · risk</small>
           </div>

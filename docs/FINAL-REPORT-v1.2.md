@@ -1,5 +1,10 @@
 # Capital Steward Engine — Final Report: Reliability Corrections for Local Personal Use
 
+> **Rebrand note (2026-11-03):** the application is now branded **CapitalCompass**.
+> This is a historical artifact produced under the former name *Capital Steward Engine*;
+> the original text is preserved verbatim below for audit. The repository identifier
+> remains `ramkivs/CapStew-Engine`.
+
 **Repository:** `ramkivs/CapStew-Engine`
 **Branch:** `arena/fed5107a-capstew-engine` (base `ffdf9cba`)
 **Commits:** `58e36e5` (reliability corrections) · `e7ba3ea` (fixture date-range fix) · `7ff5c93`, `96299d0` (report) · `4389086` (Windows verification harness) — all pushed

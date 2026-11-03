@@ -34,7 +34,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     // Network failure — the engine is not reachable at all.
     throw new ApiRequestError(0, ENGINE_UNREACHABLE,
-      'Cannot reach the Capital Steward engine. Is the backend running on port 8000?');
+      'Cannot reach the CapitalCompass engine. Is the backend running on port 8000?');
   }
   if (!res.ok) {
     let code = 'ERROR';

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Push Capital Steward Engine to GitHub.
+# Push CapitalCompass to GitHub.
 # Run this ON YOUR MACHINE (after cloning or unzipping the bundle), with your own
 # GitHub credentials. The sandbox has no GitHub authentication and must not hold it.
 set -euo pipefail
@@ -28,7 +28,7 @@ fi
 echo
 echo "pushing main + tags…"
 git add -A
-git commit -q -m "Capital Steward Engine v1.0.0" 2>/dev/null || echo "  (nothing new to commit)"
+git commit -q -m "CapitalCompass v1.0.0" 2>/dev/null || echo "  (nothing new to commit)"
 git push -u origin main
 git push --tags
 
