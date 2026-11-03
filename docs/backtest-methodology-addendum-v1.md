@@ -1,6 +1,11 @@
 # CAPITAL STEWARD ENGINE
 # CR-015 — Backtest Methodology Addendum v1
 
+> **Rebrand note (2026-11-03):** the application is now branded **CapitalCompass**.
+> This is a historical artifact produced under the former name *Capital Steward Engine*;
+> the original text is preserved verbatim below for audit. The repository identifier
+> remains `ramkivs/CapStew-Engine`.
+
 **Status:** CR-015 addendum prepared · documentation artifact only  
 **Authority basis:** `docs/v1.1-authority-decisions-v1.md`, Decision D — Backtest Methodology Addendum  
 **Baseline:** V1.1 main after CR-001, CR-009, CR-018, and CR-007  

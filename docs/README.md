@@ -1,6 +1,6 @@
 # Design & Governance Artifacts
 
-The authoritative documentation for Capital Steward Engine. Read order:
+The authoritative documentation for CapitalCompass. Read order:
 
 | # | Document | Role |
 |---|---|---|

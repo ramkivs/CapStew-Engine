@@ -1,4 +1,4 @@
-"""Capital Steward Determinism Guarantee (Freeze §8).
+"""CapitalCompass Determinism Guarantee (Freeze §8).
 
 content_hash is the sha256 of the canonical JSON of the payload minus the
 run_id — same inputs + same policy + same engine version ⇒ identical hash.

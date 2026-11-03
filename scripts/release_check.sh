@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Capital Steward Engine — Release/Operational Readiness Gate (R-01…R-09).
+# CapitalCompass — Release/Operational Readiness Gate (R-01…R-09).
 # Verifies the v1 baseline from a CLEAN checkout: reproducible deps, fresh fixture
 # regeneration (determinism), fresh tests, fresh build, fresh API process, demo + UI
 # acceptance, and persistence across restart. Run from the repo root.

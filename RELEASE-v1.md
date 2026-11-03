@@ -1,5 +1,10 @@
 # Capital Steward Engine — Release v1.0.0
 
+> **Rebrand note (2026-11-03):** the application is now branded **CapitalCompass**.
+> This is a historical artifact produced under the former name *Capital Steward Engine*;
+> the original text is preserved verbatim below for audit. The repository identifier
+> remains `ramkivs/CapStew-Engine`.
+
 **Release date:** 2026-08-22 · **Baseline:** tagged `v1.0.0` in git · **Status:** v1 product implementation COMPLETE
 
 ---

@@ -1,15 +1,17 @@
 @echo off
 REM =====================================================================
-REM  Capital Steward Engine - stop the local engine and interface
+REM  CapitalCompass - stop the local engine and interface
 REM  Closes the two windows opened by start.bat. Your stored runs in
 REM  data\ are untouched - this only stops the running processes.
 REM =====================================================================
 setlocal EnableExtensions
 
 echo.
-echo   Stopping Capital Steward Engine ...
+echo   Stopping CapitalCompass ...
 
-for %%T in (CapitalSteward-API CapitalSteward-UI) do (
+REM  Legacy CapitalSteward-* titles are still matched so windows opened by
+REM  an older start.bat are stopped too (backward compatibility).
+for %%T in (CapitalCompass-API CapitalCompass-UI CapitalSteward-API CapitalSteward-UI) do (
   tasklist /FI "WINDOWTITLE eq %%T*" 2>nul | find /i "cmd.exe" >nul
   if not errorlevel 1 (
     taskkill /FI "WINDOWTITLE eq %%T*" /T /F >nul 2>&1

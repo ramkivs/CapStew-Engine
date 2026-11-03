@@ -1,4 +1,11 @@
 # Capital Steward Engine — Methodology Freeze v1.0
+
+> **Rebrand note (2026-11-03):** the application is now branded **CapitalCompass**
+> (formerly *Capital Steward Engine*). This freeze is a signed historical artifact:
+> §0 and §15 record the original naming decision and are preserved verbatim for audit.
+> The §8 determinism guarantee is unchanged and now carries the CapitalCompass name
+> in code and living documentation. No methodology, policy value, API contract or
+> hash semantics change with the rename; the repository remains `ramkivs/CapStew-Engine`.
 *(Spec v1.1 addendum — supersedes conflicting sections of Spec v1.0)*
 
 > **Status: CLOSED — signed off 2026-08-22.** All P0 items frozen; authority decisions recorded in §15. Phase 1 (data foundation) is built and contract-tested against these frozen rules. The scoring engine (gates/composite/trim) remains uncoded until Phase 2, which reads these rules verbatim.

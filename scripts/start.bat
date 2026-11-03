@@ -1,14 +1,14 @@
 @echo off
 REM =====================================================================
-REM  Capital Steward Engine - local startup (single user, this machine)
+REM  CapitalCompass - local startup (single user, this machine)
 REM
 REM  Double-click this file. On first run it creates the Python virtual
 REM  environment and installs the frontend dependencies; after that it
 REM  just starts both services and opens your browser.
 REM
 REM  Two minimised console windows open:
-REM      CapitalSteward-API   the engine  (http://127.0.0.1:8000)
-REM      CapitalSteward-UI    the interface (http://127.0.0.1:5173)
+REM      CapitalCompass-API   the engine  (http://127.0.0.1:8000)
+REM      CapitalCompass-UI    the interface (http://127.0.0.1:5173)
 REM
 REM  Both bind to 127.0.0.1 only - nothing is exposed to your network.
 REM  To stop: run scripts\stop.bat, or close the two windows.
@@ -22,7 +22,7 @@ set "PORT=8000"
 set "UIPORT=5173"
 
 echo.
-echo   Capital Steward Engine
+echo   CapitalCompass
 echo   %REPO%
 echo.
 
@@ -72,7 +72,7 @@ if not errorlevel 1 (
 
 REM ---- 6. Start the engine ------------------------------------------------
 echo   [.] Starting the engine on http://127.0.0.1:%PORT% ...
-start "CapitalSteward-API" /MIN cmd /k ""%PY%" -m uvicorn app.main:app --host 127.0.0.1 --port %PORT%"
+start "CapitalCompass-API" /MIN cmd /k ""%PY%" -m uvicorn app.main:app --host 127.0.0.1 --port %PORT%"
 
 REM ---- 7. Wait for it to answer /health -----------------------------------
 where curl >nul 2>nul
@@ -83,7 +83,7 @@ set /a TRIES=0
 curl -s -o nul "http://127.0.0.1:%PORT%/api/v1/health" && goto :up
 set /a TRIES+=1
 if %TRIES% lss 40 goto :wait
-echo   [x] The engine did not answer within 40s - check the CapitalSteward-API window.
+echo   [x] The engine did not answer within 40s - check the CapitalCompass-API window.
 goto :fail
 :up
 echo   [+] Engine is answering /health
@@ -91,7 +91,7 @@ echo   [+] Engine is answering /health
 
 REM ---- 8. Start the interface ---------------------------------------------
 echo   [.] Starting the interface on http://127.0.0.1:%UIPORT% ...
-start "CapitalSteward-UI" /MIN cmd /k "cd /d "%REPO%\frontend" && npm run dev"
+start "CapitalCompass-UI" /MIN cmd /k "cd /d "%REPO%\frontend" && npm run dev"
 
 REM ---- 9. Open the browser once the dev server is up ----------------------
 set /a TRIES=0

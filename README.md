@@ -1,6 +1,10 @@
-# Capital Steward Engine — v1.2 (Phase 3 engine + reliability corrections)
+# CapitalCompass — v1.2 (Phase 3 engine + reliability corrections)
 
 Portfolio discipline · valuation · tax · risk.
+
+> **Naming:** the application is **CapitalCompass** (formerly *Capital Steward Engine*).
+> The repository identifier `ramkivs/CapStew-Engine`, API contracts, packages and
+> persisted data are unchanged by the rename.
 
 - **Phase 1 (done):** data foundation — parsers → normalization → reconciliation (G0) → per-lot FIFO → canonical payload, with the determinism hash. No decision logic.
 - **Phase 2 (done):** the decision engine — G0–G4 gates → Stage-2 scorer → confidence → hysteresis → TRIM-S/TRIM-V → `reason_tree`/`why_now` → DecisionPayload.
@@ -218,7 +222,7 @@ carried on every decision payload.
   guaranteed to exist, so the summary is **provisional until real sold data is provided**;
   it is authoritative for whatever sold ledger is actually supplied.
 - v1 is local, single-user, advisory (ADR-3). No live market data (ADR-5). Deterministic
-  (Capital Steward Determinism Guarantee, Freeze §8).
+  (CapitalCompass Determinism Guarantee, Freeze §8).
 - Hysteresis is an explicit input: `run_engine()` (no history) is deterministic; `/run`
   supplies persisted history, so the same fixtures on a second `/run` yield identical
   decisions but a different `content_hash` (the `previous_run` field differs) — correct,

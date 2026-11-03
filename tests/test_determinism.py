@@ -1,4 +1,4 @@
-"""Capital Steward Determinism Guarantee (Freeze §8) — replay tests."""
+"""CapitalCompass Determinism Guarantee (Freeze §8) — replay tests."""
 from datetime import date
 from pathlib import Path
 

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Local verification harness for the Capital Steward Engine as a personal,
+    Local verification harness for CapitalCompass as a personal,
     single-user application on this Windows machine.
 
 .DESCRIPTION
@@ -302,7 +302,7 @@ function Write-Summary {
     $failed = @($script:Checks | Where-Object { $_.Result -eq 'FAIL' }).Count
 
     $lines = @()
-    $lines += "Capital Steward Engine - local verification"
+    $lines += "CapitalCompass - local verification"
     $lines += "Generated : $(Get-Date -Format 'o')"
     $lines += "Outcome   : $Outcome"
     $lines += "Repository: $RepoRoot"
@@ -337,7 +337,7 @@ function Write-Summary {
 # Main
 # ==========================================================================
 New-Item -ItemType Directory -Path $Evidence -Force | Out-Null
-Write-Host "Capital Steward Engine - local verification"
+Write-Host "CapitalCompass - local verification"
 Write-Host "Repository : $RepoRoot"
 Write-Host "Evidence   : $Evidence"
 Write-Host ""
@@ -347,7 +347,7 @@ try {
     Write-Host "[1/9] Repository state"
 
     if (-not (Test-Path (Join-Path $RepoRoot 'app\main.py'))) {
-        throw "$RepoRoot does not look like a Capital Steward Engine checkout (app\main.py missing)"
+        throw "$RepoRoot does not look like a CapitalCompass checkout (app\main.py missing)"
     }
 
     $branch = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD).Trim()

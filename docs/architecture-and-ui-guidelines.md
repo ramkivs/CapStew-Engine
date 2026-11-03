@@ -1,4 +1,4 @@
-# Capital Steward Engine
+# CapitalCompass
 # Architecture & UI/UX Design Guidelines (v1.1)
 
 > **v1.1:** incorporates the Methodology Freeze (`methodology-freeze-v1.md`). Decision semantics renamed HOLD/WATCH/TRIM/HARVEST/EXIT; ADR-1a resolves the browser-computation contradiction; §13 adds the freeze amendments. Where this doc conflicts with the Freeze, **the Freeze wins**.
